@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
 import DOMPurify from "dompurify";
-import Highcharts, { Series } from 'highcharts';
+import Highcharts from 'highcharts';
 import HighchartsReact from 'highcharts-react-official';
 import Message from '@/types/Message';
 // import type { SeriesOptionsType } from 'highcharts';
@@ -148,7 +148,7 @@ const ChatInterface = () => {
 						console.log('eventSource.onmessage data');
 						console.log(data);
 						let highchartsOptions = parsedData?.highcharts || {};
-						let highchartsData = parsedData?.highcharts_data || [];
+						const highchartsData = parsedData?.highcharts_data || [];
 						console.log(`highchartsOptions`)
 						console.log(highchartsOptions)
 						console.log(`highchartsData`)
