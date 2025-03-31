@@ -268,13 +268,13 @@ def ask_agent(query: str, session_id: str):
     log(val)
     yield val
 
-    flipside_sql_query_result = pd.DataFrame(
-        {
-            'timestamp': pd.date_range(start='2025-01-01', periods=100),
-            'value': np.random.randint(0, 100, size=100)
-        }
-    )
-    col = 'value'
+    # flipside_sql_query_result = pd.DataFrame(
+    #     {
+    #         'timestamp': pd.date_range(start='2025-01-01', periods=100),
+    #         'value': np.random.randint(0, 100, size=100)
+    #     }
+    # )
+    # col = 'value'
 
     response = {}
     for chunk in graph.stream(state, stream_mode='values'):
