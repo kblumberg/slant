@@ -268,6 +268,7 @@ def ask_agent(query: str, session_id: str):
     log(val)
     yield val
 
+
     # flipside_sql_query_result = pd.DataFrame(
     #     {
     #         'timestamp': pd.date_range(start='2025-01-01', periods=100),
