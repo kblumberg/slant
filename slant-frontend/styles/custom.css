@@ -1,0 +1,79 @@
+:root {
+    --primary-color: #1373eb;
+    --secondary-color: #ffe270;
+    --tertiary-color: #0E4BA3;
+    --background-color: #101218;
+}
+
+body {
+    background-color: var(--background-color);
+}
+
+.user-message {
+    background-color: var(--primary-color);
+}
+  
+h3 {
+    /* color: var(--primary-color); */
+    color: #ffe270;
+    font-size: 20px;
+    padding: 20px 0 10px;
+    font-weight: 600;
+}
+a {
+    /* color: white; */
+    color: #ffe270;
+    /* color: var(--primary-color); */
+    text-decoration: underline;
+}
+
+.chat-container {
+    padding: 2px 20px;
+    border-radius: 10px;
+    color: white;
+}
+
+.chat-container.user-message {
+    color: white;
+    background-color: var(--primary-color);
+}
+
+.chat-container p {
+    margin: 10px 0;
+}
+
+.chat-container h3 {
+    /* color: var(--primary-color); */
+    font-size: 1.5rem;
+    padding: 25px 0 10px;
+    font-weight: 800;
+}
+.chat-container .text-base {
+    font-size: 1.0rem;
+}
+
+.chat-container ul, .chat-container ol {
+    padding-left: 20px;
+    margin: 10px 0;
+    list-style: disc;
+}
+
+.chat-container li {
+    margin-bottom: 5px;
+}
+
+.highcharts-axis-labels > text, .highcharts-legend-item > text {
+    fill: #FFFFFF !important;
+    color: #FFFFFF !important;
+}
+  
+/* ul {
+    padding-left: 20px;
+}
+li {
+    margin-bottom: 8px;
+    font-size: 16px;
+} */
+/* strong {
+    color: #d63384;
+} */

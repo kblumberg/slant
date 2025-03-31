@@ -1,0 +1,167 @@
+Schema: core
+
+Standard Columns (present in most tables unless otherwise noted):
+- block_id: Height of the chain this block corresponds with
+- block_timestamp: UTC timestamp of the block, primary index column for time-based queries
+- tx_id: Unique identifier for each transaction (base58 encoded in Solana)
+
+IMPORTANT:
+- the SOL token address is So11111111111111111111111111111111111111112
+
+
+Table: solana.core.dim_labels
+Purpose: Provides labels for Solana addresses (programs, accounts, etc.).
+Key Columns:
+- address: The Solana address being labeled 
+- address_name: Human readable name if available
+- label_type: High-level category (e.g., dex, token, nft)
+- label_subtype: Subcategory providing more specific classification (e.g., deposit_wallet, nf_token_contract)
+- label: Name of the entity associated with the address (e.g., binance, coinbase, mexc)
+
+
+Table: solana.core.ez_events_decoded
+Purpose: Provides decoded event data from program instructions.
+Key Columns:
+- signers: List of public keys that signed the transaction
+- index: Position of the instruction within the transaction
+- inner_index: Position of inner instructions (if any)
+- event_type: Type of event generated (if any)
+- program_id: The program being interacted with
+- decoded_instruction: The parsed instruction data in JSON format
+- decoded_accounts: The decoded account information
+- decoded_args: The decoded instruction arguments
+- decoding_error: Any errors encountered during instruction decoding
+- ez_events_decoded_id: Unique identifier for the decoded event
+
+
+Table: solana.core.fact_transactions
+Purpose: Provides detailed transaction information.
+Key Columns:
+- signers: List of public keys that signed the transaction
+- fee: Transaction fee in lamports
+- account_keys: List of accounts involved in the transaction with their permissions (signer/writable status)
+- pre_balances: Account balances before transaction execution
+- post_balances: Account balances after transaction execution
+- pre_token_balances: Token balances before transaction execution
+- post_token_balances: Token balances after transaction execution
+- instructions: Detailed program instructions executed in the transaction
+- inner_instructions: Any nested instructions called during transaction execution
+- log_messages: System logs and messages generated during transaction execution
+- units_consumed: Amount of compute units used by the transaction
+- units_limit: Maximum compute units allowed for the transaction
+- tx_size: Size of the transaction in bytes
+
+
+Table: solana.core.fact_transfers
+Purpose: Tracks SOL and SPL token transfers.
+Key Columns:
+- index: Position/sequence number of the transfer within a transaction
+- tx_from: Source wallet address initiating the transfer
+- tx_to: Destination wallet address receiving the transfer
+- amount: Quantity of tokens transferred (in SOL)
+- mint: Token mint address (appears to be the standard SOL token address)
+
+
+Table: solana.core.fact_decoded_instructions
+Purpose: Provides decoded instruction data based on program IDLs.
+Key Columns:
+- program_id: The identifier of the program being called in the instruction
+- signers: Array of public keys that signed the transaction
+- index: Position of the instruction within the transaction
+- inner_index: Position of nested instructions (if applicable)
+- event_type: Type of event triggered by the instruction (appears to be null in samples)
+- decoded_instruction: JSON containing the decoded instruction data or error message
+
+
+Table: solana.core.fact_events
+Purpose: Records inner instructions generated during transaction execution.
+Key Columns:
+- signers: Array of public keys that signed the transaction
+- index: Position of the instruction within the transaction
+- event_type: Type of event (appears to be null in samples)
+- program_id: The program that executed the instruction
+- instruction: JSON object containing the instruction details including accounts and data
+- inner_instruction: Related inner instructions (appears to be null in samples)
+
+
+
+================================================================================
+
+
+
+Schema: nft
+
+
+Standard Columns (present in all tables unless otherwise noted):
+- block_id: Height of the chain this block corresponds with
+- block_timestamp: UTC timestamp of the block
+- tx_id: Unique identifier for each transaction
+- succeeded: Boolean indicating if the operation was successful
+
+
+Table: solana.nft.dim_nft_metadata
+Purpose: Stores metadata and attributes for NFTs on Solana, including collection information, creator details, and NFT characteristics
+Key Columns:
+- mint: The unique identifier/address of the NFT
+- nft_collection_name: Name of the NFT collection (if part of one)
+- collection_id: Identifier for the collection the NFT belongs to
+- creators: JSON array containing information about NFT creators, including addresses and share percentages
+- authority: The authority/owner address for the NFT
+- metadata: JSON array containing NFT traits and attributes
+- image_url: URL pointing to the NFT's image asset
+- metadata_uri: URI containing the complete metadata for the NFT
+- nft_name: The display name of the NFT
+
+
+Table: solana.nft.fact_nft_mints
+Purpose: Tracks NFT minting events
+Key Columns:
+- program_id: The Solana program that processed the mint transaction
+- purchaser: Wallet address of the NFT buyer/minter
+- mint_price: Cost of minting the NFT
+- mint_currency: Token used for payment (e.g., So11111111111111111111111111111111111111111 for SOL)
+- mint: The unique address/identifier of the minted NFT
+- is_compressed: Boolean indicating whether the NFT is compressed (true) or regular (false)
+
+
+Table: solana.nft.fact_nft_mint_actions
+Purpose: Tracks NFT minting events and actions
+Key Columns:
+- index: Position of the event within a transaction
+- inner_index: Sub-position of the event within a transaction
+- event_type: Type of minting action (e.g., "initializeMint2", "mintTo")
+- mint: The address/identifier of the NFT mint
+- mint_amount: The quantity of tokens minted (if applicable)
+- mint_authority: The address authorized to mint tokens
+- signers: List of addresses that signed the transaction
+- decimal: Number of decimal places for the token
+- mint_standard_type: The standard type of the mint (if applicable)
+
+
+Table: solana.nft.fact_nft_sales
+Purpose: Records NFT sales
+Key Columns:
+- marketplace: The marketplace where the NFT sale occurred
+- program_id: The Solana program ID that processed the transaction
+- purchaser: Wallet address of the NFT buyer
+- seller: Wallet address of the NFT seller
+- mint: The unique identifier/address of the NFT being sold
+- sales_amount: The price of the NFT in SOL
+- tree_authority: Authority for compressed NFTs (null in these samples)
+- merkle_tree: Merkle tree reference for compressed NFTs (null in these samples)
+- leaf_index: Index in merkle tree for compressed NFTs (null in these samples)
+- is_compressed: Boolean indicating if the NFT is compressed (false in these samples)
+
+
+Common Usage Patterns:
+1. Join mint with dim_nft_metadata for collection context
+2. Track primary sales through fact_nft_mints
+3. Analyze secondary market through fact_nft_sales
+4. Monitor payment_mint to distinguish between SOL and SPL token sales
+5. Join mint with dim_nft_metadata for collection details
+6. Track primary market through fact_nft_mint_actions
+7. Monitor NFT burns through fact_nft_burn_actions
+8. Analyze secondary market through fact_nft_sales
+9. Use fact_nft_mint_actions to identify NFT creators/projects
+
+Note: Solana NFTs use the SPL Token standard with metadata programs, different from EVM's ERC-721/1155.
