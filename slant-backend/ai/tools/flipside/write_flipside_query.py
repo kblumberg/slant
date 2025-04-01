@@ -108,30 +108,36 @@ def write_flipside_query(state: GraphState) -> GraphState:
         # }
         # refined_query = 'What has the trading volume on Jupiter been since January 1 2025 to now?'
         project_tags = extract_project_tags_from_user_prompt(state['query'], state['llm'])
-        results_filtered = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={'project_tags': {'$in': project_tags}}, top_k=20)
-        thirty_days_ago = int((datetime.now() - timedelta(days=90)).timestamp())
-        results_filtered_new = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={'project_tags': {'$in': project_tags}, 'created_at': {'$gte': thirty_days_ago}}, top_k=20)
-        results_new = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={'created_at': {'$gte': thirty_days_ago}}, top_k=20)
-        results = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={}, top_k=20)
+        results_filtered = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={'project_tags': {'$in': project_tags}}, top_k=40)
+        ninety_days_ago = int((datetime.now() - timedelta(days=90)).timestamp())
+        results_filtered_new = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={'project_tags': {'$in': project_tags}, 'created_at': {'$gte': ninety_days_ago}}, top_k=40)
+        results_new = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={'created_at': {'$gte': ninety_days_ago}}, top_k=40)
+        results = pc_execute_query(refined_query, index_name="slant", namespace="flipside_queries", filter_conditions={}, top_k=40)
         log(f'project_tags: {project_tags}')
         log(f'results_filtered: {len(results_filtered["matches"])}')
         log(f'results_filtered_new: {len(results_filtered_new["matches"])}')
         log(f'results_new: {len(results_new["matches"])}')
         log(f'results: {len(results["matches"])}')
-        a = [[x['id'], x['score'], x['metadata']['text'], x['metadata']['user_id'], 0] for x in results['matches']]
-        b = [[x['id'], x['score'] * 1.05, x['metadata']['text'], x['metadata']['user_id'], 1] for x in results_filtered['matches']] if len(results_filtered['matches']) else []
-        c = [[x['id'], x['score'] * 1.1, x['metadata']['text'], x['metadata']['user_id'], 2] for x in results_new['matches']] if len(results_new['matches']) else []
-        d = [[x['id'], x['score'] * 1.15, x['metadata']['text'], x['metadata']['user_id'], 3] for x in results_filtered_new['matches']] if len(results_filtered_new['matches']) else []
-        results_all = pd.DataFrame(a + b + c + d, columns=['query_id','score','text','user_id','is_filtered'])
-        results_all['match_index'] = results_all.groupby('is_filtered').score.rank(ascending=False).astype(int)
-        results_all['user_index'] = results_all.groupby('user_id').score.rank(ascending=False).astype(int)
-        results_all['rk'] = results_all.groupby('query_id').score.rank(ascending=False).astype(int)
-        results_all['adj_score'] = results_all.score * results_all.rk.apply(lambda x: pow(0.5, x - 1))
-        g = results_all.groupby('query_id').agg({'adj_score': 'sum', 'is_filtered': 'max'}).reset_index().sort_values('adj_score', ascending=False)
-        g['rank'] = g.adj_score.rank(ascending=False).astype(int)
-        g = g[(g['rank'] <= 10)].rename(columns={'adj_score': 'score'})
+        metadata_cols = ['text', 'user_id', 'dashboard_id', 'created_at', 'project_tags']
+        a = [[x['id'], x['score'], 0] + [x['metadata'][c] for c in metadata_cols] for x in results['matches']]
+        b = [[x['id'], x['score'], 1] + [x['metadata'][c] for c in metadata_cols] for x in results_filtered['matches']] if len(results_filtered['matches']) else []
+        c = [[x['id'], x['score'], 2] + [x['metadata'][c] for c in metadata_cols] for x in results_new['matches']] if len(results_new['matches']) else []
+        d = [[x['id'], x['score'], 3] + [x['metadata'][c] for c in metadata_cols] for x in results_filtered_new['matches']] if len(results_filtered_new['matches']) else []
+        results_all = pd.DataFrame(a + b + c + d, columns=['query_id','score','is_filtered'] + metadata_cols)
+        results_all['days_ago'] = results_all['created_at'].apply(lambda x: max(0, int((datetime.now().timestamp() - x) / (24 * 3600))))
+        sorted(results_all['days_ago'].unique())
+        results_all['mult'] = results_all['days_ago'].apply(lambda x: pow(0.999, x)) * results_all['dashboard_id'].apply(lambda x: 1 if x else 0.9) * results_all['project_tags'].apply(lambda x: 1 if len(set(x) & set(project_tags)) else 0.9)
+        results_all['score_1'] = results_all['score'] * results_all['mult']
+        results_all = results_all.sort_values(['score_1', 'is_filtered'], ascending=[0,0]).drop_duplicates(subset=['query_id'], keep='first')
+        results_all.head()[['score', 'mult', 'score_1', 'is_filtered']]
+        results_all['match_index'] = results_all.groupby('is_filtered').score_1.rank(ascending=False).astype(int)
+        results_all['user_index'] = results_all.groupby('user_id').score_1.rank(ascending=False).astype(int)
+        results_all['rk'] = results_all.score_1.rank(ascending=False).astype(int)
+        # results_all = results_all[(results_all['rk'] <= 15) | (results_all['match_index'] <= 3) | ((results_all['user_index'] <= 1) & (results_all['rk'] <= 30))].rename(columns={'score_1': 'score'})
+        del results_all['score']
+        results_all = results_all[(results_all['rk'] <= 15)].rename(columns={'score_1': 'score'})
 
-        results_all = results_all[(results_all.query_id.isin(g.query_id)) | (results_all['match_index'] <= 3) | (results_all['user_index'] <= 1)].drop_duplicates(subset=['query_id'], keep='last')
+        # results_all = results_all[(results_all.query_id.isin(g.query_id)) | (results_all['match_index'] <= 3) | (results_all['user_index'] <= 1)].drop_duplicates(subset=['query_id'], keep='last')
 
         upload_df = results_all[['query_id','score','is_filtered']]
         upload_df['rank'] = upload_df.score.rank(ascending=False).astype(int)
@@ -141,7 +147,7 @@ def write_flipside_query(state: GraphState) -> GraphState:
         upload_df['created_at'] = int(datetime.now().timestamp())
         pg_upload_data(upload_df, 'context_queries')
         # log(results)
-        example_queries = '\n\n'.join(results_all.text.apply(lambda x: x[:20000]).values)
+        example_queries = '\n\n'.join(results_all.text.apply(lambda x: x[:10000]).values)
         # Create prompt template
         prompt = f"""
             You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
@@ -153,7 +159,7 @@ def write_flipside_query(state: GraphState) -> GraphState:
             Write a **valid and optimized Snowflake SQL query** that answers the following user question:
 
             ### ❓ Question:
-            {state['clarified_query']}
+            {state['query']}
 
             ---
 

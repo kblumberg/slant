@@ -284,6 +284,8 @@ def ask_agent(query: str, session_id: str):
         if answer:
             response['answer'] = answer
         highcharts_config = chunk.get('highcharts_config')
+        if type(highcharts_config) == str:
+            highcharts_config = json.loads(highcharts_config)
         if highcharts_config:
             response['highcharts_config'] = highcharts_config
         flipside_sql_query_result = chunk.get('flipside_sql_query_result')
@@ -294,16 +296,38 @@ def ask_agent(query: str, session_id: str):
             # if x_col:
             chart_data = [
                 { 'name': col, 'data': flipside_sql_query_result[[x_col, col]].dropna().values.tolist() }
-                for col in flipside_sql_query_result.columns if col != x_col and type(flipside_sql_query_result[col].iloc[0]) in [int, float]
+                for col in flipside_sql_query_result.columns if col != x_col
             ] if x_col == 'timestamp' else [
-                { 'name': col, 'data': flipside_sql_query_result[[col]].dropna().values.tolist(), 'scale': get_scale(flipside_sql_query_result, col) }
-                for col in flipside_sql_query_result.columns if col != x_col and type(flipside_sql_query_result[col].iloc[0]) in [int, float]
+                { 'name': col, 'data': flipside_sql_query_result[[col]].dropna().values.tolist() }
+                for col in flipside_sql_query_result.columns if col != x_col
             ]
             response['highcharts_data'] = {
-                'x': flipside_sql_query_result[x_col].tolist() if x_col else list(range(len(flipside_sql_query_result))),
+                'x': sorted(flipside_sql_query_result[x_col].unique().tolist()) if x_col else list(range(len(flipside_sql_query_result))),
                 'series': chart_data,
                 'mode': x_col
             }
+            if 'timestamp' in flipside_sql_query_result.columns and 'category' in flipside_sql_query_result.columns:
+                log('timestamp and category in flipside_sql_query_result')
+                log(highcharts_config)
+                log(highcharts_config.keys())
+                if 'series' in highcharts_config.keys():
+                    categories = flipside_sql_query_result['category'].unique().tolist()
+                    columns = sorted(list(set([ x['column'] for x in highcharts_config['series'] ])))
+                    print(f'categories: {categories}.')
+                    print(f'columns: {columns}.')
+                    chart_data = []
+                    for cat in categories:
+                        for col in columns:
+                            cur = flipside_sql_query_result[flipside_sql_query_result['category'] == cat][[x_col, col]].dropna().values.tolist()
+                            if len(cur):
+                                chart_data.append({ 'name': cat, 'data': cur })
+                    # chart_data = [
+                    #     { 'name': cat, 'data': flipside_sql_query_result[[col]].dropna().values.tolist() }
+                    #     for col in columns for cat in categories
+                    # ]
+                    log('chart_data')
+                    log(chart_data)
+                    response['highcharts_data']['series'] = chart_data
             log('highcharts_data')
             log(response['highcharts_data'])
         upcoming_tool = get_upcoming_tool(chunk)

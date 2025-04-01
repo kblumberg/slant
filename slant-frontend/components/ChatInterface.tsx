@@ -175,7 +175,7 @@ const ChatInterface = () => {
 								// eslint-disable-next-line @typescript-eslint/no-explicit-any
 								highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
 									const matchedSeries = series.find(
-										(s: HighchartsDataSeries) => s.name === seriesConfig.column
+										(s: HighchartsDataSeries) => s.name === seriesConfig.column || s.name === seriesConfig.name
 									);
 									if (matchedSeries) {
 										return {
@@ -382,7 +382,8 @@ const ChatInterface = () => {
 			// Add target="_blank" to all links in the content
 			const contentWithNewTabLinks = content.replace(/<a\s+(?:[^>]*?)href=/g, '<a target="_blank" href=');
 			// console.log(`typeof message.data?.highcharts = ${typeof message.data?.highcharts}`)
-			const highchartsOptions = message.data?.highcharts;
+			const highcharts = message.data?.highcharts;
+			const highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
 			// const highchartsData = message.data?.highcharts_data;
 			return (
 				<div key={message.id} className={`flex justify-start`}>

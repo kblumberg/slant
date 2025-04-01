@@ -84,7 +84,8 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
    - Choose an appropriate chart type (e.g., line, bar, pie) based on the data and question.
    - Ensure the axes, labels, and tooltips are well formatted and readable.
    - Add proper titles and legends when necessary.
-   - Avoid using gridlines for the x-axis and y-axis.
+   - Avoid using gridlines for the x-axis and y-axis. (gridLineWidth: 0 for xAxis and yAxis)
+   - Make sure to always include 0 in the y-axis.
 
 2. **Use the Following Colors**
    - **Primary Color**: `#1373eb`
@@ -149,6 +150,8 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
     # )
     raw_config = state['sql_llm'].invoke(prompt).content
     highcharts_config = validate_and_clean_highcharts_json(raw_config)
+    log('format_for_highcharts highcharts_config')
+    log(highcharts_config)
     time_taken = round(time.time() - start_time, 1)
     log(f'format_for_highcharts finished in {time_taken} seconds')
     # print(f"highcharts_config: {highcharts_config}")

@@ -75,21 +75,25 @@ def scrape_new_flipside_dashboards(n_pages: int = 1):
 def scrape_new_flipside_queries(n_pages: int = 1):
     queries_df = pd.DataFrame()
     for i in range(n_pages):
-        url = f'https://flipsidecrypto.xyz/insights/queries/solana?sortBy=new{"&page=" + str(i+1) if i > 0 else ""}'
-        print(f'Page {i+1} of {n_pages}: {len(queries_df)} queries found so far.')
-        time.sleep(5)
-        r = requests.get(url)
-        items = re.split(r'window\.__remixContext = (.*?});', r.text, re.DOTALL)
-        len(items)
-        j = json.loads(items[1])
-        j['state']['loaderData'].keys()
-        j['state']['loaderData']['routes/__shell/insights/queries.$project']['items'][0]
-        items = j['state']['loaderData']['routes/__shell/insights/queries.$project']['items']
-        cols = ['id','name','slug','slugId','latestSlug','statement','resultLastAccessedAt','lastSuccessfulExecutionAt','createdById','createdAt','updatedAt','forkedFromId','profile']
-        cur = pd.DataFrame(items)[cols]
-        cur['user_name'] = cur.profile.apply(lambda x: x['user']['username'] if x['user'] is not None else x['team']['name'])
-        del cur['profile']
-        queries_df = pd.concat([queries_df, cur]).drop_duplicates(subset=['id'])
+        try:
+            url = f'https://flipsidecrypto.xyz/insights/queries/solana?sortBy=new{"&page=" + str(i+1) if i > 0 else ""}'
+            print(f'Page {i+1} of {n_pages}: {len(queries_df)} queries found so far.')
+            time.sleep(5)
+            r = requests.get(url)
+            items = re.split(r'window\.__remixContext = (.*?});', r.text, re.DOTALL)
+            len(items)
+            j = json.loads(items[1])
+            j['state']['loaderData'].keys()
+            j['state']['loaderData']['routes/__shell/insights/queries.$project']['items'][0]
+            items = j['state']['loaderData']['routes/__shell/insights/queries.$project']['items']
+            cols = ['id','name','slug','slugId','latestSlug','statement','resultLastAccessedAt','lastSuccessfulExecutionAt','createdById','createdAt','updatedAt','forkedFromId','profile']
+            cur = pd.DataFrame(items)[cols]
+            cur['user_name'] = cur.profile.apply(lambda x: x['user']['username'] if x['user'] is not None else x['team']['name'])
+            del cur['profile']
+            queries_df = pd.concat([queries_df, cur]).drop_duplicates(subset=['id'])
+        except Exception as e:
+            print(f'Error on page {i+1}: {e}')
+            continue
 
     return queries_df
 
