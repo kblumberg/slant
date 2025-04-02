@@ -6,6 +6,7 @@ from utils.utils import log
 from constants.keys import SLANT_API_KEY
 from scripts.update_tweets import update_tweets
 from api.sharky.orderbooks import load_orderbooks
+from api.flipside.update_flipside_queries import update_flipside_data
 from flask import Flask, jsonify, request, Response, stream_with_context
 
 
