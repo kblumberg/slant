@@ -10,3 +10,8 @@ def get_scale(data: pd.DataFrame, col: str) -> int:
     else:
         return mx / mn
 
+def read_schemas():
+    schemas = ''
+    with open('ai/context/flipside/schema.sql', 'r') as f:
+        schemas = f.read()
+    return schemas

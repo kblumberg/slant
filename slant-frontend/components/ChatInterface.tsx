@@ -116,7 +116,8 @@ const ChatInterface = () => {
 			console.log(`params`)
 			console.log(params.toString())
 			// const eventSource = new EventSource(`http://127.0.0.1:5000/ask?${params.toString()}`);
-			const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
+			const eventSource = new EventSource(`http://127.0.0.1:5000/ask_analyst?${params.toString()}`);
+			// const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
 
 			eventSource.onmessage = (event) => {
 				// console.log("SSE update:");

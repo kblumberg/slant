@@ -5,6 +5,7 @@ from ai.ai import ask_agent
 from utils.utils import log
 from constants.keys import SLANT_API_KEY
 from scripts.update_tweets import update_tweets
+from ai.tools.analyst.analyst import ask_analyst
 from api.sharky.orderbooks import load_orderbooks
 from api.flipside.update_flipside_data import update_flipside_data
 from flask import Flask, jsonify, request, Response, stream_with_context
@@ -86,8 +87,31 @@ def ask():
             return jsonify({"error": "session_id required"}), 400
 
         response = Response(stream_with_context(ask_agent(query, session_id)), content_type='text/event-stream')
-        # response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
+        return response
+    except Exception as e:
+        log(e)
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/ask_analyst', methods=['GET'])
+def ask_analyst_route():
+    try:
+        log('ask_analyst')
+
+        query = request.args.get('query', '')
+        log(f'query: {query}')
+        session_id = request.args.get('session_id', '')
+        log(f'session_id: {session_id}')
+
+        if not query:
+            return jsonify({"error": "query required"}), 400
+        if not session_id:
+            return jsonify({"error": "session_id required"}), 400
+
+        response = Response(stream_with_context(ask_analyst(query, session_id)), content_type='text/event-stream')
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
         return response
     except Exception as e:
         log(e)

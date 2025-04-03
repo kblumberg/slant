@@ -9,21 +9,6 @@ Key Columns:
 - label
 
 
-Table: solana.core.ez_events_decoded
-Purpose: Provides decoded event data from program instructions.
-Key Columns:
-- signers
-- index
-- inner_index
-- event_type
-- program_id
-- decoded_instruction
-- decoded_accounts
-- decoded_args
-- decoding_error
-- ez_events_decoded_id
-
-
 Table: solana.core.fact_transactions
 Purpose: Provides detailed transaction information.
 Key Columns:
