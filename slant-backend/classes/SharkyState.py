@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 
 class SharkyState(TypedDict):
     question: str
-    answer: str
+    response: str
     sql_query: str
     sql_query_result: pd.DataFrame
     highcharts_config: dict

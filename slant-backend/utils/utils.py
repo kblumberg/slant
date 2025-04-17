@@ -1,7 +1,12 @@
 import re
 import os
+import json
 import pandas as pd
+from datetime import datetime
 from constants.constant import DEBUG_MODE
+
+def get_timestamp():
+    return datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
 def get_base_path():
     return re.split('utils', os.path.dirname(os.path.abspath(__file__)))[0]
@@ -38,6 +43,40 @@ def clean_project_tag(tag: str) -> str:
     except Exception as e:
         print(f"Error cleaning project tag: {e}")
         return tag
+
+def clean_token_name(token: str) -> str:
+    try:
+        token = token.lower()
+        phrases = [' ','$', '_']
+        for phrase in phrases:
+            token = token.replace(phrase, '')
+        phrases = []
+        for phrase in phrases:
+            if token[:len(phrase)] == phrase:
+                token = phrase
+        phrases = []
+        for phrase in phrases:
+            if token[-len(phrase):] == phrase:
+                token = token.replace(phrase, '')
+        token = token.replace('.', '')
+        d = {}
+        if token in d.keys():
+            token = d[token]
+        return token
+    except Exception as e:
+        print(f"Error cleaning token name: {e}")
+        return tag
+
+def clean_token_names(tokens: str) -> list[str]:
+    try:
+        tokens = tokens.replace('```json', '').replace('```', '').strip()
+        tokens = json.loads(tokens)
+        tokens = [clean_token_name(x) for x in tokens]
+        tokens = [x for x in tokens if not x in ['solana','sol']]
+        return tokens
+    except Exception as e:
+        print(f"Error cleaning token names: {e}")
+        return []
 
 def clean_project_tags(tags: str) -> list[str]:
     try:

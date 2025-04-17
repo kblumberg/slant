@@ -7,25 +7,18 @@ from classes.GraphState import GraphState
 from langchain_openai import OpenAIEmbeddings
 from utils.db import PINECONE_API_KEY, pg_load_data
 from classes.TweetSearchParams import TweetSearchParams
+from classes.JobState import JobState
+from ai.tools.utils.prompt_refiner import twitter_prompt_refiner
+from ai.tools.utils.utils import get_refined_prompt
 
-def rag_search_tweets(state: GraphState) -> GraphState:
-    """
-    Performs a search on a RAG database of tweets.
-    Input: a dictionary with the following keys:
-        - query: a question or topic you want to find tweets about (str)
-        - top_n_tweets: the number of tweets to return (int, default to 25, with discretion to change this based on the question)
-        - author_ids: a list of author ids to filter by (List[int], default to empty list)
-        - start_time: a unix timestamp in seconds (int, default to 0, which is the beginning of time)
-        - end_time: a unix timestamp in seconds (int, default to 0, which we will set to the current time)
-    """
-    # refined_query = prompt_refiner(state, 'Search a RAG database of tweets.')
-    refined_query = state['refined_query']
+def rag_search_tweets(state: JobState) -> JobState:
+    refined_prompt = get_refined_prompt(state)
     start_time = time.time()
     params = {
-        "query": refined_query
+        "query": refined_prompt
         , "top_n_tweets": 20
         , "author_ids": []
-        , "start_time": state['start_timestamp']
+        , "start_time": 0
         , "end_time": 0
     }
     log('\n')
@@ -42,6 +35,9 @@ def rag_search_tweets(state: GraphState) -> GraphState:
     author_ids = params["author_ids"] if 'author_ids' in params else []
     gte = params["start_time"] if 'start_time' in params else 0
     end_time = params["end_time"] if 'end_time' in params and params["end_time"] > 0 else int(time.time())
+
+    refined_twitter_prompt = twitter_prompt_refiner(state)
+    log(f'refined_twitter_prompt: {refined_twitter_prompt}')
     # refined_query = prompt_refiner(state, 'Search a RAG database of tweets.')
     # refined_query = params["query"]
 
@@ -58,7 +54,7 @@ def rag_search_tweets(state: GraphState) -> GraphState:
     
     # Get embeddings for query
     embeddings = OpenAIEmbeddings()
-    query_embedding = embeddings.embed_query(refined_query)
+    query_embedding = embeddings.embed_query(refined_twitter_prompt)
     filter_conditions = {
         "created_at": {
             "$gte": gte,
@@ -94,7 +90,7 @@ def rag_search_tweets(state: GraphState) -> GraphState:
     unique_tweets = {tweet.id: tweet for tweet in new_tweets}.values()  
     time_taken = round(time.time() - start_time, 1)
     log(f'rag_search_tweets finished in {time_taken} seconds')
-    return {'tweets': unique_tweets, 'completed_tools': ["RagSearchTweets"], 'upcoming_tools': ["AnswerWithContext"]}
+    return {'tweets': unique_tweets, 'completed_tools': ['RagSearchTweets']}
 
 
 def get_tweets_by_project_ids_and_start_time(params: TweetSearchParams) -> str:

@@ -1,7 +1,7 @@
 import json
 import time
 from utils.utils import log
-from classes.GraphState import GraphState
+from classes.JobState import JobState
 
 def validate_and_clean_highcharts_json(config_str: str) -> str:
     """
@@ -10,7 +10,10 @@ def validate_and_clean_highcharts_json(config_str: str) -> str:
     try:
         parsed = json.loads(config_str)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON from LLM: {e}")
+        log('Invalid JSON from LLM:')
+        log(config_str)
+        log(e)
+        raise ValueError(e)
 
     # Optional: Check recursively that no string contains expressions like "100 - 57.3"
     def contains_expression(value):
@@ -28,7 +31,7 @@ def validate_and_clean_highcharts_json(config_str: str) -> str:
 
     return json.dumps(parsed)
 
-def format_for_highcharts(state: GraphState) -> GraphState:
+def format_for_highcharts(state: JobState) -> JobState:
     """
         Formats a data frame for Highcharts.
         Input:
@@ -136,7 +139,7 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
         }}
     ]
 }}
-""".format(sql_query_result=state['flipside_sql_query_result'], question=state['query'])
+""".format(sql_query_result=state['flipside_sql_query_result'], question=state['analysis_description'])
 
 
     # print('prompt')
@@ -148,7 +151,7 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
     #     openai_api_key=OPENAI_API_KEY,
     #     temperature=0.0
     # )
-    raw_config = state['sql_llm'].invoke(prompt).content
+    raw_config = state['complex_llm'].invoke(prompt).content
     highcharts_config = validate_and_clean_highcharts_json(raw_config)
     log('format_for_highcharts highcharts_config')
     log(highcharts_config)
@@ -156,4 +159,4 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
     log(f'format_for_highcharts finished in {time_taken} seconds')
     # print(f"highcharts_config: {highcharts_config}")
 
-    return {'highcharts_config': highcharts_config, 'completed_tools': ["FormatForHighcharts"], 'upcoming_tools': ["AnswerWithContext"]}
+    return {'highcharts_config': highcharts_config, 'completed_tools': ["FormatForHighcharts"], 'upcoming_tools': ["RespondWithContext"]}

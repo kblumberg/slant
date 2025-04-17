@@ -51,6 +51,9 @@ def score_accounts():
 	g.head(20)
 
 
+	query = 'UPDATE twitter_kols SET score = 0'
+	pg_execute_query(query)
+
 	it = 0
 	tot = len(g)
 	for row in g[['id','username','score','ecosystem']].itertuples():
@@ -66,7 +69,9 @@ def score_accounts():
 
 def score_projects():
 	
-	query = 'ALTER TABLE projects ADD COLUMN score float DEFAULT 0'
+	# query = 'ALTER TABLE projects ADD COLUMN score float DEFAULT 0'
+	# pg_execute_query(query)
+	query = 'UPDATE projects SET score = 0'
 	pg_execute_query(query)
 
 	query = f"""

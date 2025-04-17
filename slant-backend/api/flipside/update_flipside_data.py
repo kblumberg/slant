@@ -117,4 +117,5 @@ def update_flipside_queries_from_pinecone():
     df['dashboard_id'] = df['dashboard_id'].fillna('')
     df.loc[df.project_tags.isnull(), 'project_tags'] = df.project_tags.apply(lambda x: [])
     df[FLIPSIDE_QUERIES_RAG_COLS].count()
+    df.loc[df.tables.isnull(), 'tables'] = df.tables.apply(lambda x: [])
     pc_upload_data(df, 'text', FLIPSIDE_QUERIES_RAG_COLS, batch_size=100, index_name='slant', namespace='flipside_queries')

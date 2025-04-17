@@ -71,13 +71,16 @@ const QueryStatus = ({text}: {text: string}) => {
 	);
 }
 
+interface ChatInterfaceProps {
+	userId: string;
+	conversationId: string;
+}
 
-const ChatInterface = () => {
+
+const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [inputText, setInputText] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	// const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
-	const sessionId = crypto.randomUUID();
 	const [status, setStatus] = useState('Analyzing query');
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	// const [status, setStatus] = useState('');
@@ -87,7 +90,7 @@ const ChatInterface = () => {
 
 	useEffect(() => {
 		scrollToBottom();
-		// setSessionId(crypto.randomUUID());
+		// setconversationId(crypto.randomUUID());
 		// const eventSource = new EventSource('http://localhost:5000/stream');
 
 		// eventSource.onmessage = (event) => {
@@ -111,7 +114,8 @@ const ChatInterface = () => {
 			setStatus('Analyzing query');
 			const params = new URLSearchParams({
 				query,
-				session_id: sessionId,
+				conversation_id: conversationId,
+				user_id: userId,
 			});
 			console.log(`params`)
 			console.log(params.toString())
@@ -245,7 +249,7 @@ const ChatInterface = () => {
 			// const url = "https://slant-backend-production.up.railway.app/ask_sharky"
 			const body = {
 				"query": query,
-				"session_id": sessionId
+				"conversation_id": conversationId
 			}
 			const response = await fetch(url, {
 				method: "POST",
@@ -308,9 +312,8 @@ const ChatInterface = () => {
 	}
 
 	const handleSend = async () => {
-		if (!inputText.trim()) return;
-
-		const curText = inputText;
+		const curText = inputText.trim();
+		if (!curText) return;
 
 		const userMessage: Message = {
 			id: Date.now().toString(),
@@ -403,7 +406,7 @@ const ChatInterface = () => {
 	return (
 		<div className="sm:p-12 pt-10 pb-14 flex flex-col items-center justify-center">
 		<div className="flex flex-col h-full w-full sm:w-3/5 mx-auto rounded-md">
-			<div className="flex-1 overflow-y-auto p-4 space-y-4">
+			<div className="flex-1 overflow-y-auto pt-8 p-4 space-y-4">
 				{messageDivs}
 				{isLoading && (
 					<div className="flex justify-start">

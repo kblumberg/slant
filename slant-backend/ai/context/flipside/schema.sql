@@ -10,7 +10,7 @@ Key Columns:
 
 
 Table: solana.core.ez_events_decoded
-Purpose: Provides decoded event data from program instructions.
+Purpose: Provides decoded event data from program instructions. Use this table to extract data from events emitted by specific program ids.
 Key Columns:
 - signers
 - index
@@ -309,7 +309,7 @@ Key Columns:
 
 
 Table: solana.defi.fact_stake_pool_actions
-Purpose: Records stake pool actions
+Purpose: Records stake pool actions (ONLY for the $SOL native token)
 Key Columns:
 - block_timestamp
 - block_id
@@ -329,19 +329,27 @@ Key Columns:
 
 Schema: gov
 
+IMPORTANT: All `solana.gov` tables only include staking $SOL on validators; not staking any other tokens.
 
 Table: solana.gov.ez_staking_lp_actions
-Purpose: Records staking pool actions
+Purpose: Records staking actions for Solana validators.
 Key Columns:
 - block_timestamp
-- block_id
 - tx_id
 - succeeded
-- action_type
+- event_type
 - pool_address
-- staker_address
-- amount
-- program_id
+- signers
+- stake_authority
+- withdraw_authority
+- stake_account
+- stake_active
+- pre_tx_staked_balance
+- post_tx_staked_balance
+- withdraw_amount
+- withdraw_destination
+- vote_account
+- validator_name
 
 
 Table: solana.gov.fact_block_production
@@ -470,20 +478,6 @@ Key Columns:
 - amount: Reward amount in lamports
 - epoch
 - commission: Validators commission percentage
-
-
-Table: solana.gov.fact_staking_lp_actions
-Purpose: Records staking pool actions
-Key Columns:
-- block_timestamp
-- block_id
-- tx_id
-- succeeded
-- program_id
-- action_type: Type of staking action (stake, unstake)
-- pool_address
-- staker_address
-- amount: Amount of LP tokens staked/unstaked
 
 
 Table: solana.gov.fact_validators

@@ -20,8 +20,8 @@ analyses:
 flipside_tables:
 {state['flipside_tables']}
 
-answer:
-{state['answer']}
+response:
+{state['response']}
 
 {('='*20)}
 

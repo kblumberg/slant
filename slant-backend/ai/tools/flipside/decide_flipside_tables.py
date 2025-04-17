@@ -52,8 +52,8 @@ def decide_flipside_tables(state: JobState) -> JobState:
     log(j)
     time_taken = round(time.time() - start_time, 1)
     log(f'decide_flipside_tables finished in {time_taken} seconds')
-    answer = {
+    response = {
         'flipside_tables': str(j),
         'analyses': [x.to_string() for x in state['analyses']],
     }
-    return {'flipside_tables': j, 'answer': json.dumps(answer), 'completed_tools': ["DecideFlipsideTables"]}
+    return {'flipside_tables': j, 'response': json.dumps(response), 'completed_tools': ["DecideFlipsideTables"]}

@@ -5,6 +5,7 @@ from utils.utils import log
 from classes.JobState import JobState
 from classes.Analysis import Analysis
 from utils.utils import clean_project_tag
+from ai.tools.utils.utils import parse_messages
 
 def parse_analyses(state: JobState) -> JobState:
     """
@@ -19,13 +20,14 @@ def parse_analyses(state: JobState) -> JobState:
     log('='*20)
     log('\n')
     log('parse_analyses starting...')
+    messages = parse_messages(state)
     prompt = """
     You are an expert blockchain analyst specialized in extracting structured data from user queries.
 
-    TASK: Parse the user prompt and identify specific analysis requests for blockchain metrics.
+    TASK: Parse the conversation history and identify specific analysis requests for blockchain metrics.
 
-    USER PROMPT:
-    {user_prompt}
+    CONVERSATION HISTORY:
+    {messages}
 
     EXTRACTION RULES:
     1. Extract ALL instances of metrics and projects
@@ -37,7 +39,8 @@ def parse_analyses(state: JobState) -> JobState:
     - time period: Convert to Unix timestamps
         - If specific dates are mentioned (e.g., "Jan 1, 2023"), convert to Unix timestamp
         - If relative time is mentioned (e.g., "last 7 days", "past month"), calculate from current time
-        - If no time period specified, default to "0"
+        - If no start time is specified, default to "0" for start_time
+        - If no end time is specified or if it should go to present time, default to "0" for end_time
 
     TIME CONVERSION GUIDELINES:
     - Current timestamp: {current_timestamp}
@@ -54,6 +57,7 @@ def parse_analyses(state: JobState) -> JobState:
     {{
         "metric": "string",
         "activity": "string",
+        "tokens": ["string"],
         "project": "string",
         "start_time": integer,
         "end_time": integer
@@ -64,17 +68,28 @@ def parse_analyses(state: JobState) -> JobState:
     EXAMPLES:
     User: "Compare the number of unique wallets that bought NFTs on Magic Eden and Tensor over the last month"
     Output: [
-    {{"metric": "unique wallets", "activity": "nft buy", "project": "Magic Eden", "start_time": 1638316800, "end_time": 1640995200}},
-    {{"metric": "unique wallets", "activity": "nft buy", "project": "Tensor", "start_time": 1638316800, "end_time": 1640995200}}
+    {{"metric": "unique wallets", "activity": "nft buy", "project": "Magic Eden", "tokens": [] "start_time": 1638316800, "end_time": 0}},
+    {{"metric": "unique wallets", "activity": "nft buy", "project": "Tensor", "tokens": [], "start_time": 1638316800, "end_time": 0}}
+    ]
+
+    User: "The user requests an analysis of the unique wallets that have interacted with SharkyFi's token lending product since its launch on April 12, 2025, without an end date. The analysis should focus solely on token lending transactions, excluding NFT lending, and provide a combined count of unique wallets for both lenders and borrowers. The program ID for the token lending product is `SHARKobtfF1bHhxD2eqftjHBdVSCbKo9JtgK71FhELP`, and the analysis should be restricted to mainnet transactions."
+    Output: [
+    {{"metric": "unique wallets", "activity": "offer token loan", "project": "Sharkyfi", "tokens": [], "start_time": 0, "end_time": 0}},
+    {{"metric": "unique wallets", "activity": "take token loan", "project": "Sharkyfi", "tokens": [], "start_time": 0, "end_time": 0}}
     ]
 
     User: "Show me Solana transaction volume and TVL since January"
     Output: [
-    {{"metric": "transaction volume", "activity": "transaction", "project": "Solana", "start_time": 1640995200, "end_time": 1672531200}},
-    {{"metric": "TVL", "activity": "stake,unstake", "project": "Solana", "start_time": 1640995200, "end_time": 1672531200}}
+    {{"metric": "transaction volume", "activity": "transaction", "project": "Solana", "tokens": [], "start_time": 1640995200, "end_time": 0}},
+    {{"metric": "TVL", "activity": "stake,unstake", "project": "Solana", "tokens": [], "start_time": 1640995200, "end_time": 0}}
+    ]
+
+    User: "Show me the unique purchasers of $BONK over the last 30 days"
+    Output: [
+    {{"metric": "unique purchasers", "activity": "token buy", "project": "", "tokens": ["BONK"], "start_time": 1640995200, "end_time": 0}},
     ]
     """.format(
-        user_prompt=state['user_prompt'],
+        messages=messages,
         current_timestamp=int(time.time())  # Gets current Unix timestamp
     )
     # log('prompt')
@@ -82,18 +97,15 @@ def parse_analyses(state: JobState) -> JobState:
     response = state['llm'].invoke(prompt).content
     response = re.sub(r'```json', '', response)
     response = re.sub(r'```', '', response)
-    log('response')
-    log(response)
     j = json.loads(response)
-    log('j')
-    log(j)
     analyses = []
     for analysis in j:
         project = clean_project_tag(analysis['project'])
         analysis['project'] = project if len(project) > 0 else ''
         analyses.append(Analysis(**analysis))
-    log('analyses')
-    log(analyses)
+    log('parse_analyses output')
+    for analysis in analyses:
+        log(str(analysis))
     time_taken = round(time.time() - start_time, 1)
     log(f'parse_analyses finished in {time_taken} seconds')
-    return {'analyses': analyses, 'answer': '\n'.join([analysis.to_string() for analysis in analyses]), 'completed_tools': ["ParseAnalyses"]}
+    return {'analyses': analyses, 'response': '\n'.join([analysis.to_string() for analysis in analyses]), 'completed_tools': ["ParseAnalyses"]}

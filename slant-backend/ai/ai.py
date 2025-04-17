@@ -17,7 +17,7 @@ from constants.keys import ANTHROPIC_API_KEY, OPENAI_API_KEY
 from ai.tools.slant.slant_query_writer import slant_query_writer
 from ai.tools.twitter.rag_search_tweets import rag_search_tweets
 from ai.tools.slant.rag_search_projects import rag_search_projects
-from ai.tools.utils.answer_with_context import answer_with_context
+from ai.tools.utils.respond_with_context import respond_with_context
 from ai.tools.slant.slant_query_executor import slant_query_executor
 from ai.tools.utils.format_for_highcharts import format_for_highcharts
 from ai.tools.flipside.write_flipside_query import write_flipside_query
@@ -38,7 +38,7 @@ def get_upcoming_tool(state: GraphState):
         'DataAnalyst',
         'ExecuteFlipsideQuery',
         'FormatForHighcharts',
-        'AnswerWithContext',
+        'RespondWithContext',
     ]
     d = {
         'RagSearchTweets': 'Searching Twitter',
@@ -50,7 +50,7 @@ def get_upcoming_tool(state: GraphState):
         'DataAnalyst': 'Writing Flipside SQL query',
         'ExecuteFlipsideQuery': 'Executing Flipside SQL query',
         'FormatForHighcharts': 'Generating chart',
-        'AnswerWithContext': 'Summarizing data',
+        'RespondWithContext': 'Summarizing data',
         'NewsFinder': 'Searching latest news',
     }
     print('get_upcoming_tool')
@@ -102,7 +102,7 @@ def flipside_execution_logic(state: GraphState) -> str:
 
 def join_tools_gate(state: GraphState) -> str:
     """
-    Determines whether to proceed to AnswerWithContext or wait for more tool executions.
+    Determines whether to proceed to RespondWithContext or wait for more tool executions.
     
     Args:
         state (GraphState): The current state of the graph.
@@ -119,10 +119,10 @@ def join_tools_gate(state: GraphState) -> str:
     print(f'Upcoming tools: {sorted(list(set(state["upcoming_tools"])))}')
     print(f'Completed tools: {sorted(list(set(state["completed_tools"])))}')
     
-    # If no remaining tools, proceed to AnswerWithContext
-    if len(remaining_tools) == 0 or (len(remaining_tools) == 1 and remaining_tools[0] == 'AnswerWithContext'):
-        print('All tools completed. Moving to AnswerWithContext.')
-        return "AnswerWithContext"
+    # If no remaining tools, proceed to RespondWithContext
+    if len(remaining_tools) == 0 or (len(remaining_tools) == 1 and remaining_tools[0] == 'RespondWithContext'):
+        print('All tools completed. Moving to RespondWithContext.')
+        return "RespondWithContext"
     
     # Otherwise, continue waiting
     print('Still waiting for tools to complete.')
@@ -149,7 +149,7 @@ def make_graph():
     builder.add_node("FormatForHighcharts", format_for_highcharts)
     builder.add_node("PrintState", print_state)
     builder.add_node("JoinTools", lambda state: {})
-    builder.add_node("AnswerWithContext", answer_with_context)
+    builder.add_node("RespondWithContext", respond_with_context)
 
     builder.add_conditional_edges("ToolSelector", tool_selection_logic)
     tool_nodes = [
@@ -170,21 +170,20 @@ def make_graph():
 
     # builder.add_edge("PrintState", "JoinTools")
     builder.add_conditional_edges("JoinTools", join_tools_gate)
-    builder.add_edge("AnswerWithContext", "PrintState")
+    builder.add_edge("RespondWithContext", "PrintState")
     builder.add_edge("PrintState", END)
 
     return builder.compile()
 
-def ask_agent(query: str, session_id: str):
+def ask_agent(query: str, conversation_id: str):
     # query = 'how many sharky nft loans have been taken in the last 5 days?'
     log('ask_agent')
     start_time = time.time()
 
     sync_connection = psycopg.connect(POSTGRES_ENGINE)
-    session_id = '2ba67ea8-5458-4ce8-8e5c-98352b5e4bbe'
 
     memory = PostgresConversationMemory(
-        session_id=session_id,
+        conversation_id=conversation_id,
         sync_connection=sync_connection
     )
     # memory.messages = []
@@ -236,9 +235,9 @@ def ask_agent(query: str, session_id: str):
         , tweets=[]
         , projects=[]
         , kols=[]
-        , run_tools=['AnswerWithContext']
+        , run_tools=['RespondWithContext']
         , llm=llm
-        , answer=''
+        , response=''
         , sql_query=''
         , sql_query_result=pd.DataFrame()
         , sql_llm=sql_llm
@@ -253,7 +252,7 @@ def ask_agent(query: str, session_id: str):
         , upcoming_tools=[]
         , completed_tools=[]
         , memory=memory
-        , session_id=session_id
+        , conversation_id=conversation_id
         , refined_prompt_for_flipside_sql=''
         , start_timestamp=0
         , news_df=pd.DataFrame()
@@ -280,9 +279,9 @@ def ask_agent(query: str, session_id: str):
     response = {}
     for chunk in graph.stream(state, stream_mode='values'):
         log('UPDATING STATE')
-        answer = chunk.get('answer')
-        if answer:
-            response['answer'] = answer
+        response = chunk.get('response')
+        if response:
+            response['response'] = response
         highcharts_config = chunk.get('highcharts_config')
         if type(highcharts_config) == str:
             highcharts_config = json.loads(highcharts_config)
@@ -342,19 +341,19 @@ def ask_agent(query: str, session_id: str):
     log('response')
     log(response)
 
-    val = memory.save_context(
-        inputs={
-            'input': query
-        },
-        outputs={
-            'output': response['answer']
-        }
-    )
-    log('memory.save_context')
-    log(val)
+    # val = memory.save_context(
+    #     inputs={
+    #         'input': query
+    #     },
+    #     outputs={
+    #         'output': response['response']
+    #     }
+    # )
+    # log('memory.save_context')
+    # log(val)
 
 
-    html_output = markdown.markdown(response['answer'])
+    html_output = markdown.markdown(response['response'])
     log('html output created')
 
     data = {

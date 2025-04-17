@@ -27,4 +27,4 @@ def slant_query_executor(state: GraphState) -> GraphState:
     sql_query_result = '\n'.join(('\n'+'='*20+'\n').join([str(x) for x in df.to_dict('records')]).split('\n'))
     time_taken = round(time.time() - start_time, 1)
     log(f'slant_query_executor finished in {time_taken} seconds')
-    return {'sql_query_result': sql_query_result, 'completed_tools': ["SlantQueryExecutor"], 'upcoming_tools': ["AnswerWithContext"]}
+    return {'sql_query_result': sql_query_result, 'completed_tools': ["SlantQueryExecutor"], 'upcoming_tools': ["RespondWithContext"]}

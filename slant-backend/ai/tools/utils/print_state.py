@@ -26,8 +26,8 @@ kols:
 run_tools:
 {state['run_tools']}
 
-answer:
-{state['answer']}
+response:
+{state['response']}
 
 sql_query:
 {state['sql_query']}

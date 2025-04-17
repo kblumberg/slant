@@ -68,4 +68,4 @@ def news_finder(state: GraphState) -> GraphState:
     """
     news_df = pg_load_data(query)
     log(news_df)
-    return {'news_df': news_df[['text','twitter_url']], 'completed_tools': ["NewsFinder"], 'upcoming_tools': ["AnswerWithContext"]}
+    return {'news_df': news_df[['text','twitter_url']], 'completed_tools': ["NewsFinder"], 'upcoming_tools': ["RespondWithContext"]}

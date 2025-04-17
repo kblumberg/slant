@@ -28,7 +28,7 @@ class GraphState(TypedDict):
     flipside_sql_error: str
     flipside_sql_attempts: int
     flipside_example_queries: str
-    answer: str
+    response: str
     sharky_agent_answer: str
     llm: ChatAnthropic | ChatOpenAI
     sql_llm: ChatAnthropic | ChatOpenAI
@@ -38,6 +38,6 @@ class GraphState(TypedDict):
     upcoming_tools: Annotated[List[str], append]
     completed_tools: Annotated[List[str], append]
     memory: PostgresConversationMemory
-    session_id: str
+    conversation_id: str
     start_timestamp: int
     news_df: pd.DataFrame

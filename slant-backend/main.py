@@ -78,15 +78,15 @@ def ask():
 
         query = request.args.get('query', '')
         log(f'query: {query}')
-        session_id = request.args.get('session_id', '')
-        log(f'session_id: {session_id}')
+        conversation_id = request.args.get('conversation_id', '')
+        log(f'conversation_id: {conversation_id}')
 
         if not query:
             return jsonify({"error": "query required"}), 400
-        if not session_id:
-            return jsonify({"error": "session_id required"}), 400
+        if not conversation_id:
+            return jsonify({"error": "conversation_id required"}), 400
 
-        response = Response(stream_with_context(ask_agent(query, session_id)), content_type='text/event-stream')
+        response = Response(stream_with_context(ask_agent(query, conversation_id)), content_type='text/event-stream')
         response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
         # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
         return response
@@ -101,15 +101,19 @@ def ask_analyst_route():
 
         query = request.args.get('query', '')
         log(f'query: {query}')
-        session_id = request.args.get('session_id', '')
-        log(f'session_id: {session_id}')
+        conversation_id = request.args.get('conversation_id', '')
+        log(f'conversation_id: {conversation_id}')
+        user_id = request.args.get('user_id', '')
+        log(f'user_id: {user_id}')
 
         if not query:
             return jsonify({"error": "query required"}), 400
-        if not session_id:
-            return jsonify({"error": "session_id required"}), 400
+        if not conversation_id:
+            return jsonify({"error": "conversation_id required"}), 400
+        if not user_id:
+            return jsonify({"error": "user_id required"}), 400
 
-        response = Response(stream_with_context(ask_analyst(query, session_id)), content_type='text/event-stream')
+        response = Response(stream_with_context(ask_analyst(query, conversation_id, user_id)), content_type='text/event-stream')
         response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
         # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
         return response

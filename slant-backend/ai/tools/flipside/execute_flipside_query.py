@@ -2,9 +2,9 @@ import time
 import pandas as pd
 from utils.utils import log
 from utils.db import fs_load_data
-from classes.GraphState import GraphState
+from classes.JobState import JobState
 
-def execute_flipside_query(state: GraphState) -> GraphState:
+def execute_flipside_query(state: JobState) -> JobState:
     """
     Executes a query on the flipside database.
     Input:
@@ -41,4 +41,4 @@ def execute_flipside_query(state: GraphState) -> GraphState:
     # state.update()
     # log('execute_flipside_query state')
     # print_state(state)
-    return {'flipside_sql_query_result': df, 'flipside_sql_error': error, 'flipside_sql_attempts': attempts, 'completed_tools': ["ExecuteFlipsideQuery"], 'upcoming_tools': ["FormatForHighcharts"]}
+    return {'flipside_sql_query_result': df, 'flipside_sql_error': error, 'flipside_sql_attempts': attempts, 'completed_tools': ['ExecuteFlipsideQuery'], 'upcoming_tools': ['FormatForHighcharts']}

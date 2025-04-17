@@ -122,4 +122,4 @@ def answer_with_sharky_preds(state: GraphState) -> GraphState:
     answer = state['llm'].invoke(prompt).content
     time_taken = round(time.time() - start_time, 1)
     log(f'answer_with_sharky_preds finished in {time_taken} seconds')
-    return {'sharky_agent_answer': answer, 'completed_tools': ["SharkyAgent"], 'upcoming_tools': ["AnswerWithContext"]}
+    return {'sharky_agent_answer': answer, 'completed_tools': ["SharkyAgent"], 'upcoming_tools': ["RespondWithContext"]}
