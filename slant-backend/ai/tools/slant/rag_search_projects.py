@@ -20,10 +20,10 @@ def rag_search_projects(state: JobState) -> JobState:
         "query": refined_prompt
         , "top_n_projects": 5
     }
-    print('\n')
-    print('='*20)
-    print('\n')
-    print('rag_search_projects starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    log('rag_search_projects starting...')
     # print(f'params: {params}')
     # Ensure params is a dictionary
     if isinstance(params, str):
@@ -63,5 +63,5 @@ def rag_search_projects(state: JobState) -> JobState:
     new_projects = list(state['projects']) + projects
     unique_projects = {project.id: project for project in new_projects}.values()  
     time_taken = round(time.time() - start_time, 1)
-    log(f'rag_search_projects finished in {time_taken} seconds')
+    # log(f'rag_search_projects finished in {time_taken} seconds')
     return {'projects': unique_projects, 'completed_tools': ['RagSearchProjects']}

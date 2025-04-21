@@ -10,9 +10,9 @@ def validate_and_clean_highcharts_json(config_str: str) -> str:
     try:
         parsed = json.loads(config_str)
     except json.JSONDecodeError as e:
-        log('Invalid JSON from LLM:')
-        log(config_str)
-        log(e)
+        # log('Invalid JSON from LLM:')
+        # log(config_str)
+        # log(e)
         raise ValueError(e)
 
     # Optional: Check recursively that no string contains expressions like "100 - 57.3"
@@ -43,12 +43,12 @@ def format_for_highcharts(state: JobState) -> JobState:
                 - highcharts_config: a json object of the highcharts config
     """
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('format_for_highcharts starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('format_for_highcharts starting...')
     if state['flipside_sql_query_result'].empty:
-        log('flipside_sql_query_result is empty')
+        # log('flipside_sql_query_result is empty')
         return {'highcharts_config': None, 'completed_tools': ["FormatForHighcharts"]}
     # log('state:')
     # log(print_sharky_state(sharkyState))
@@ -66,6 +66,7 @@ def format_for_highcharts(state: JobState) -> JobState:
     # }
 
     # Create prompt template
+    available_columns = [x for x in state['flipside_sql_query_result'].columns.tolist() if x not in ['timestamp', 'category']]
     prompt = """
 You are an expert data analyst and Highcharts visualization specialist. Your task is to create a well-structured Highcharts JSON configuration object based on the provided data.
 
@@ -78,6 +79,7 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
 
 ### **Inputs**
 - **Data**: {sql_query_result}
+- **Available Columns**: {available_columns}
 - **User Question**: {question}
 
 ---
@@ -134,12 +136,12 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
         {{
             "name": "Series Label",
             "data": [],
-            "column": "COLUMN_NAME_TO_FILL",
+            "column": "COLUMN / FIELD NAME in the data", # one of the available_columns
             "color": "COLOR_TO_BE_FILLED"
         }}
     ]
 }}
-""".format(sql_query_result=state['flipside_sql_query_result'], question=state['analysis_description'])
+""".format(sql_query_result=state['flipside_sql_query_result'], question=state['analysis_description'], available_columns=available_columns)
 
 
     # print('prompt')
@@ -153,10 +155,10 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
     # )
     raw_config = state['complex_llm'].invoke(prompt).content
     highcharts_config = validate_and_clean_highcharts_json(raw_config)
-    log('format_for_highcharts highcharts_config')
-    log(highcharts_config)
+    # log('format_for_highcharts highcharts_config')
+    # log(highcharts_config)
     time_taken = round(time.time() - start_time, 1)
-    log(f'format_for_highcharts finished in {time_taken} seconds')
+    # log(f'format_for_highcharts finished in {time_taken} seconds')
     # print(f"highcharts_config: {highcharts_config}")
 
     return {'highcharts_config': highcharts_config, 'completed_tools': ["FormatForHighcharts"], 'upcoming_tools': ["RespondWithContext"]}

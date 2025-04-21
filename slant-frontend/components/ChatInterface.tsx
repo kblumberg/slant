@@ -387,7 +387,28 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			const contentWithNewTabLinks = content.replace(/<a\s+(?:[^>]*?)href=/g, '<a target="_blank" href=');
 			// console.log(`typeof message.data?.highcharts = ${typeof message.data?.highcharts}`)
 			const highcharts = message.data?.highcharts;
-			const highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
+			let highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
+			if (highchartsOptions) {
+				highchartsOptions = {
+					...highchartsOptions,
+					yAxis: {
+						...highchartsOptions.yAxis,
+						labels: {
+						...((highchartsOptions.yAxis && highchartsOptions.yAxis.labels) || {}),
+						formatter: function () {
+							if (this.value >= 1e9) {
+							return (this.value / 1e9) + 'B';
+							} else if (this.value >= 1e6) {
+							return (this.value / 1e6) + 'M';
+							} else if (this.value >= 1e3) {
+							return (this.value / 1e3) + 'K';
+							}
+							return this.value;
+						}
+						}
+					}
+				};
+			}
 			// const highchartsData = message.data?.highcharts_data;
 			return (
 				<div key={message.id} className={`flex justify-start`}>

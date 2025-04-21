@@ -34,3 +34,10 @@ def update_tweets():
         # Send Slack DM about the error
         client.chat_postMessage(channel=SLACK_CHANNEL_ID, text=f"<@{KELLEN_SLACK_ID}> Error in update_tweets: {str(e)}")
     return 0
+
+def manually_update_tweets(tweet_ids):
+    query = f"select * from tweets where id in ({', '.join(tweet_ids)})"
+    df = pg_load_data(query)
+    df = clean_tweets_for_pc(df)
+    pc_upload_data(df, 'text', TWEETS_RAG_COLS, batch_size=100, index_name='slant', namespace='tweets')
+    return len(df)

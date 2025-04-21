@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 from classes.Tweet import Tweet
 from classes.Project import Project
@@ -9,8 +10,6 @@ from typing import Annotated, TypedDict, List, Literal
 from classes.Analysis import Analysis
 from utils.db import pg_upload_data
 from tavily import TavilyClient
-import json
-
 
 def append(a, b):
     return a + b
@@ -29,14 +28,22 @@ class JobState(TypedDict):
     analysis_description: str
     write_flipside_query_or_investigate_data: str
     flipside_sql_query: str
+    improved_flipside_sql_query: str
+    verified_flipside_sql_query: str
+    flipside_sql_errors: Annotated[List[str], append]
+    flipside_sql_queries: Annotated[List[str], append]
+    flipside_sql_query_results: Annotated[List[pd.DataFrame], append]
     flipside_sql_error: str
     highcharts_config: dict
     messages: list[str]
     analyses: list[Analysis]
     llm: ChatAnthropic | ChatOpenAI
     complex_llm: ChatAnthropic | ChatOpenAI
-    resoning_llm: ChatAnthropic | ChatOpenAI
+    reasoning_llm: ChatAnthropic | ChatOpenAI
     memory: any
+    tried_tools: int
+    additional_contexts: Annotated[List[str], append]
+    run_tools: Annotated[List[str], append]
     completed_tools: Annotated[List[str], append]
     upcoming_tools: Annotated[List[str], append]
     flipside_tables: list[str]
@@ -45,6 +52,7 @@ class JobState(TypedDict):
     flipside_sql_attempts: int
     web_search_results: str
     tavily_client: TavilyClient
+    context_summary: str
 
     def to_dict(self):
         return {
@@ -57,6 +65,8 @@ class JobState(TypedDict):
             'analysis_description': self.analysis_description,
             'write_flipside_query_or_investigate_data': self.write_flipside_query_or_investigate_data,
             'flipside_sql_query': self.flipside_sql_query,
+            'improved_flipside_sql_query': self.improved_flipside_sql_query,
+            'verified_flipside_sql_query': self.verified_flipside_sql_query,
             'flipside_sql_error': self.flipside_sql_error,
             'conversation_id': self.conversation_id,
             'highcharts_config': self.highcharts_config,
@@ -64,8 +74,11 @@ class JobState(TypedDict):
             'analyses': self.analyses,
             'llm': self.llm,
             'complex_llm': self.complex_llm,
-            'resoning_llm': self.resoning_llm,
+            'reasoning_llm': self.reasoning_llm,
             'memory': self.memory,
+            'tried_tools': self.tried_tools,
+            'additional_contexts': self.additional_contexts,
+            'run_tools': self.run_tools,
             'completed_tools': self.completed_tools,
             'upcoming_tools': self.upcoming_tools,
             'flipside_tables': self.flipside_tables,
@@ -73,6 +86,7 @@ class JobState(TypedDict):
             'flipside_sql_query_result': self.flipside_sql_query_result,
             'flipside_sql_attempts': self.flipside_sql_attempts,
             'web_search_results': self.web_search_results,
+            'context_summary': self.context_summary
         }
 
     def save_context(self, inputs: dict, outputs: dict):
@@ -83,22 +97,3 @@ class JobState(TypedDict):
 
 
 
-def state_to_json(state: JobState):
-    j = {
-        'user_prompt': state['user_prompt'],
-        'response': state['response'],
-        'analysis_description': state['analysis_description'],
-        'web_search_results': state['web_search_results'],
-        'flipside_example_queries': state['flipside_example_queries'].query_id.tolist(),
-        # 'follow_up_questions': state['follow_up_questions'],
-        # 'tweets': state['tweets'],
-        # 'user_id': state['user_id'],
-        # 'conversation_id': state['conversation_id'],
-        # 'highcharts_config': state['highcharts_config'],
-        # 'analyses': state['analyses'],
-        # 'completed_tools': state['completed_tools'],
-        # 'flipside_tables': state['flipside_tables'],
-        # 'flipside_example_queries': state['flipside_example_queries'],
-        # 'web_search_results': state['web_search_results']
-    }
-    return json.dumps(j)

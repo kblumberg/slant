@@ -3,53 +3,43 @@ import time
 from utils.utils import log
 from classes.JobState import JobState
 from langchain.schema import SystemMessage, HumanMessage
+from ai.tools.utils.utils import parse_messages
 
 def twitter_prompt_refiner(state: JobState):
-    start_time = time.time()
-    role_map = {
-        "human": "USER",
-        "ai": "ASSISTANT",
-        "system": "SYSTEM"
-    }
-
-    message_history = '\n'.join([
-        f"{role_map.get(m.type, m.type.upper())}: {m.content}" for m in state['messages']
-    ])
+    message_history = parse_messages(state)
     messages = [
         SystemMessage(content="""
-    You are a specialized AI assistant that converts a conversation history into focused, effective keyword-based search strings that would help retrieve the most relevant tweets on the topic.
+            You are a specialized AI assistant that converts a conversation history into focused, effective keyword-based search strings that would help retrieve the most relevant tweets on the topic.
 
-    Your goal is to transform a conversation history into focused, effective keyword-based search strings that would help retrieve the most relevant tweets on the topic. The tweets are typically short, informal, and may include hashtags, project names, tokens, symbols (e.g. $SOL), or event-based keywords.
+            Your goal is to transform a conversation history into focused, effective keyword-based search strings that would help retrieve the most relevant tweets on the topic. The tweets are typically short, informal, and may include hashtags, project names, tokens, symbols (e.g. $SOL), or event-based keywords.
 
-    Guidelines:
-    - Be specific: include relevant project names, tokens, or technical terms when possible.
-    - Use crypto-native phrasing: like "airdrops", "$TOKEN", "staking", "TVL", "wallets", "whales", "dev update", etc.
-    - Avoid long natural language sentences — output should be short and keyword-optimized for search.
-    - Include multiple variations if appropriate (e.g. “MEV, sandwich attack, frontrunning”).
-    - Don’t include hashtags unless they’re essential (e.g. #Solana, #airdrop).
+            Guidelines:
+            - Be specific: include relevant project names, tokens, or technical terms when possible.
+            - Use crypto-native phrasing: like "airdrops", "$TOKEN", "staking", "TVL", "wallets", "whales", "dev update", etc.
+            - Avoid long natural language sentences — output should be short and keyword-optimized for search.
+            - Include multiple variations if appropriate (e.g. “MEV, sandwich attack, frontrunning”).
+            - Don’t include hashtags unless they’re essential (e.g. #Solana, #airdrop).
 
-    Return ONLY the final search string. No explanation.
-        """),
-        HumanMessage(content=f"""
-    Create a search query to search a RAG database of tweets for the following topic:
+            Return ONLY the final search string. No explanation.
+        """)
+        , HumanMessage(content=f"""
+            Create a search query to search a RAG database of tweets for the following topic:
 
-    Messages History:
-    
-    "{message_history}"
+            Messages History:
+            
+            "{message_history}"
 
-    Respond with a single optimized string for search.
+            Respond with a single optimized string for search.
         """)
     ]
 
     # Call LLM to get the decision
     response = state['llm'].invoke(messages).content
-    log(response)
-    log('response')
+    # log(response)
+    # log('response')
     # Handle potential JSON parsing errors
     response = response.replace("```json", "").replace("```", "").strip()
-    time_taken = round(time.time() - start_time, 1)
-    log(f'prompt_refiner finished in {time_taken} seconds')
-    log(f'{state["user_prompt"]} -> Refined:\n{response}')
+    # log(f'{state["user_prompt"]} -> Refined:\n{response}')
     return response
 
 def prompt_refiner(state: JobState):
@@ -104,19 +94,19 @@ def prompt_refiner(state: JobState):
 
     # Call LLM to get the decision
     response = state['llm'].invoke(messages).content
-    log(response)
-    log('response')
+    # log(response)
+    # log('response')
     # Handle potential JSON parsing errors
     try:
         if isinstance(response, str):
             response = response.replace("```json", "").replace("```", "").strip()
             response = json.loads(response)
     except Exception as e:
-        log(f"Error cleaning JSON string: {e}")
+        # log(f"Error cleaning JSON string: {e}")
         raise
     refined_query = response['refined_query']
     clarified_query = response['clarified_query']
     time_taken = round(time.time() - start_time, 1)
-    log(f'prompt_refiner finished in {time_taken} seconds')
-    log(f'{state["user_prompt"]} -> Refined:\n{refined_query} \nClarified:\n{clarified_query}')
+    # log(f'prompt_refiner finished in {time_taken} seconds')
+    # log(f'{state["user_prompt"]} -> Refined:\n{refined_query} \nClarified:\n{clarified_query}')
     return clarified_query, refined_query

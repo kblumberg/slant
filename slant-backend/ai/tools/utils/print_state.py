@@ -2,7 +2,7 @@ from utils.utils import log
 from classes.GraphState import GraphState
 
 def print_state(state: GraphState):
-    log('print_state')
+    # log('print_state')
     # log(state)
 
     log(f"""

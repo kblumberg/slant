@@ -8,10 +8,10 @@ from ai.tools.utils.utils import read_schemas
 
 def decide_flipside_tables(state: JobState) -> JobState:
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('decide_flipside_tables starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('decide_flipside_tables starting...')
     schemas = read_schemas()
     prompt = """
     You are an expert blockchain data analyst specializing in Flipside Crypto's SQL database architecture.
@@ -45,13 +45,13 @@ def decide_flipside_tables(state: JobState) -> JobState:
     response = state['llm'].invoke(formatted_prompt).content
     response = re.sub(r'```json', '', response)
     response = re.sub(r'```', '', response)
-    log('response')
-    log(response)
+    # log('response')
+    # log(response)
     j = json.loads(response)
-    log('j')
-    log(j)
+    # log('j')
+    # log(j)
     time_taken = round(time.time() - start_time, 1)
-    log(f'decide_flipside_tables finished in {time_taken} seconds')
+    # log(f'decide_flipside_tables finished in {time_taken} seconds')
     response = {
         'flipside_tables': str(j),
         'analyses': [x.to_string() for x in state['analyses']],

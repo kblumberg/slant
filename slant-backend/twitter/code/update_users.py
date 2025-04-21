@@ -20,7 +20,7 @@ def update_users(df = None):
 		update.append(user)
 
 	update_df = pd.DataFrame(update)
-	log(update_df)
+	# log(update_df)
 	update_df = update_df[TWITTER_KOL_PG_COLS]
 	pg_upload_data(update_df, 'twitter_kols')
 	return update_df

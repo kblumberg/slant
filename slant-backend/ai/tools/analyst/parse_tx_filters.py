@@ -9,10 +9,10 @@ from ai.tools.utils.utils import parse_messages
 
 def parse_tx_filters(state: JobState) -> JobState:
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('parse_tx_filters starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('parse_tx_filters starting...')
     messages = parse_messages(state)
     prompt = """
     You are an expert blockchain analyst specialized in extracting structured data from blocks of text.
@@ -98,8 +98,8 @@ def parse_tx_filters(state: JobState) -> JobState:
         project = clean_project_tag(analysis['project'])
         analysis['project'] = project if len(project) > 0 else ''
         analyses.append(Analysis(**analysis))
-    log('parse_tx_filters output')
-    log(analyses)
+    # log('parse_tx_filters output')
+    # log(analyses)
     time_taken = round(time.time() - start_time, 1)
-    log(f'parse_tx_filters finished in {time_taken} seconds')
+    # log(f'parse_tx_filters finished in {time_taken} seconds')
     return {'analyses': analyses, 'response': '\n'.join([analysis.to_string() for analysis in analyses]), 'completed_tools': ["ParseAnalyses"]}

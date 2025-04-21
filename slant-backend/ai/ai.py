@@ -11,8 +11,9 @@ from ai.tools.slant.news_finder import news_finder
 from langgraph.graph import StateGraph, START, END
 from ai.tools.utils.print_state import print_state
 from utils.memory import PostgresConversationMemory
-from ai.tools.utils.tool_selector import tool_selector
+from ai.tools.utils.tool_selector_old import tool_selector
 from ai.tools.utils.prompt_refiner import prompt_refiner
+from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 from constants.keys import ANTHROPIC_API_KEY, OPENAI_API_KEY
 from ai.tools.slant.slant_query_writer import slant_query_writer
 from ai.tools.twitter.rag_search_tweets import rag_search_tweets
@@ -58,7 +59,7 @@ def get_upcoming_tool(state: GraphState):
     print(f'completed_tools: {completed_tools}')
     remaining_tools = list(set([x for x in upcoming_tools if x not in completed_tools]))
     print(f'remaining_tools: {remaining_tools}')
-    if state['flipside_sql_error'] and state['flipside_sql_attempts'] < 3:
+    if state['flipside_sql_error'] and state['flipside_sql_attempts'] < MAX_FLIPSIDE_SQL_ATTEMPTS:
         return 'Refining Flipside SQL query'
     elif state['flipside_sql_query'] and state['upcoming_tools'][-1] == 'ExecuteFlipsideQuery':
         return 'Executing Flipside SQL query'
@@ -95,7 +96,7 @@ def tool_selection_logic(state: GraphState):
     return next_nodes if next_nodes else ["PrintState"]
 
 def flipside_execution_logic(state: GraphState) -> str:
-    if state["flipside_sql_attempts"] <= 2 and state["flipside_sql_error"] and not 'QUERY_RUN_TIMEOUT_ERROR' in state["flipside_sql_error"]:
+    if state["flipside_sql_attempts"] <= 2 and state["flipside_sql_error"] and not 'QUERY_RUN_TIMEOUT_ERROR' in str(state["flipside_sql_error"]):
         return "DataAnalyst"
     else:
         return "FormatForHighcharts"
@@ -115,17 +116,17 @@ def join_tools_gate(state: GraphState) -> str:
     # Check if all upcoming tools have been completed
     remaining_tools = list(set(state['upcoming_tools']) - set(state['completed_tools']))
     
-    print(f'Remaining tools: {remaining_tools}')
-    print(f'Upcoming tools: {sorted(list(set(state["upcoming_tools"])))}')
-    print(f'Completed tools: {sorted(list(set(state["completed_tools"])))}')
+    # log(f'Remaining tools: {remaining_tools}')
+    # log(f'Upcoming tools: {sorted(list(set(state["upcoming_tools"])))}')
+    # log(f'Completed tools: {sorted(list(set(state["completed_tools"])))}')
     
     # If no remaining tools, proceed to RespondWithContext
     if len(remaining_tools) == 0 or (len(remaining_tools) == 1 and remaining_tools[0] == 'RespondWithContext'):
-        print('All tools completed. Moving to RespondWithContext.')
+        log('All tools completed. Moving to RespondWithContext.')
         return "RespondWithContext"
     
     # Otherwise, continue waiting
-    print('Still waiting for tools to complete.')
+    # log('Still waiting for tools to complete.')
     return "JoinTools"
 
 def make_graph():
@@ -177,7 +178,7 @@ def make_graph():
 
 def ask_agent(query: str, conversation_id: str):
     # query = 'how many sharky nft loans have been taken in the last 5 days?'
-    log('ask_agent')
+    # log('ask_agent')
     start_time = time.time()
 
     sync_connection = psycopg.connect(POSTGRES_ENGINE)
@@ -187,8 +188,8 @@ def ask_agent(query: str, conversation_id: str):
         sync_connection=sync_connection
     )
     # memory.messages = []
-    log('memory')
-    log(memory)
+    # log('memory')
+    # log(memory)
     graph = make_graph()
     # chat_history = memory.load_memory_variables({})['chat_history']
     # message = chat_history[-1].content
@@ -263,8 +264,8 @@ def ask_agent(query: str, conversation_id: str):
         "status": "Analyzing query",
     }
     val = f"data: {json.dumps(message)}\n\n"
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     yield val
 
 
@@ -278,7 +279,7 @@ def ask_agent(query: str, conversation_id: str):
 
     response = {}
     for chunk in graph.stream(state, stream_mode='values'):
-        log('UPDATING STATE')
+        # log('UPDATING STATE')
         response = chunk.get('response')
         if response:
             response['response'] = response
@@ -290,7 +291,7 @@ def ask_agent(query: str, conversation_id: str):
         flipside_sql_query_result = chunk.get('flipside_sql_query_result')
         if len(flipside_sql_query_result):
             x_col = 'timestamp' if 'timestamp' in flipside_sql_query_result.columns else 'category' if 'category' in flipside_sql_query_result.columns else ''
-            log(f'x_col: {x_col}')
+            # log(f'x_col: {x_col}')
             # flipside_sql_query_result = flipside_sql_query_result.rename(columns={'timestamp': 'x'})
             # if x_col:
             chart_data = [
@@ -306,9 +307,9 @@ def ask_agent(query: str, conversation_id: str):
                 'mode': x_col
             }
             if 'timestamp' in flipside_sql_query_result.columns and 'category' in flipside_sql_query_result.columns:
-                log('timestamp and category in flipside_sql_query_result')
-                log(highcharts_config)
-                log(highcharts_config.keys())
+                # log('timestamp and category in flipside_sql_query_result')
+                # log(highcharts_config)
+                # log(highcharts_config.keys())
                 if 'series' in highcharts_config.keys():
                     categories = flipside_sql_query_result['category'].unique().tolist()
                     columns = sorted(list(set([ x['column'] for x in highcharts_config['series'] ])))
@@ -324,13 +325,13 @@ def ask_agent(query: str, conversation_id: str):
                     #     { 'name': cat, 'data': flipside_sql_query_result[[col]].dropna().values.tolist() }
                     #     for col in columns for cat in categories
                     # ]
-                    log('chart_data')
-                    log(chart_data)
+                    # log('chart_data')
+                    # log(chart_data)
                     response['highcharts_data']['series'] = chart_data
-            log('highcharts_data')
-            log(response['highcharts_data'])
+            # log('highcharts_data')
+            # log(response['highcharts_data'])
         upcoming_tool = get_upcoming_tool(chunk)
-        log(f'upcoming_tool: {upcoming_tool}')
+        # log(f'upcoming_tool: {upcoming_tool}')
         if not upcoming_tool in ['Unknown tool', 'Analyzing query']:
             message = {
                 "status": upcoming_tool,
@@ -338,8 +339,8 @@ def ask_agent(query: str, conversation_id: str):
             val = f"data: {json.dumps(message)}\n\n"
             yield val
     end_time = time.time()
-    log('response')
-    log(response)
+    # log('response')
+    # log(response)
 
     # val = memory.save_context(
     #     inputs={
@@ -354,7 +355,7 @@ def ask_agent(query: str, conversation_id: str):
 
 
     html_output = markdown.markdown(response['response'])
-    log('html output created')
+    # log('html output created')
 
     data = {
     }
@@ -367,19 +368,19 @@ def ask_agent(query: str, conversation_id: str):
         "response": html_output,
         "data": data
     }
-    log('Finished!')
-    log(message)
+    # log('Finished!')
+    # log(message)
     print(f'Time taken: {int(end_time - start_time)} seconds')
     val = f"data: {json.dumps(message)}\n\n"
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     yield val
     message = {
         "status": "done",
     }
     val = f"data: {json.dumps(message)}\n\n"
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     return val
 
     # return val

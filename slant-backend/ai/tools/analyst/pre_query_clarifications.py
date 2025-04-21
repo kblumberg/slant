@@ -7,10 +7,10 @@ from classes.JobState import JobState
 def pre_query_clarifications(state: JobState) -> JobState:
 
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('pre_query_clarifications starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('pre_query_clarifications starting...')
 
     role_map = {
         "human": "USER",
@@ -49,13 +49,13 @@ def pre_query_clarifications(state: JobState) -> JobState:
     formatted_prompt = prompt.format(
         messages=messages
     )
-    log('pre_query_clarifications formatted_prompt')
-    log(formatted_prompt)
-    response = state['resoning_llm'].invoke(formatted_prompt).content
+    # log('pre_query_clarifications formatted_prompt')
+    # log(formatted_prompt)
+    response = state['reasoning_llm'].invoke(formatted_prompt).content
     response = re.sub(r'```json', '', response)
     response = re.sub(r'```', '', response)
-    log('pre_query_clarifications response')
-    log(response)
+    # log('pre_query_clarifications response')
+    # log(response)
     time_taken = round(time.time() - start_time, 1)
-    log(f'pre_query_clarifications finished in {time_taken} seconds')
+    # log(f'pre_query_clarifications finished in {time_taken} seconds')
     return {'pre_query_clarifications': response, 'completed_tools': ["PreQueryClarifications"]}

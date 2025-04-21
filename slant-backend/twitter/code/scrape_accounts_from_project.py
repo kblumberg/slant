@@ -8,34 +8,84 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-from utils.db import pg_load_data
+from utils.db import pg_load_data, pg_execute_query, clean_tweets_for_pc, pc_upload_data
+from constants.keys import ACTIVE_TWITTER_TOKENS
+from constants.db import TWEETS_RAG_COLS
+import requests
+
 def load_articles():
 
+	options = Options()
 
-	url = f"https://x.com/metaproph3t/article/1899823082900259017"
-	driver.get(url)
+	un = os.getenv('TWITTER_UN')
+	pw = os.getenv('TWITTER_PW')
 
+	driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+	driver.get('https://x.com/i/flow/login')
+	time.sleep(5)
+	username_input = driver.find_element(By.CSS_SELECTOR, 'input[autocomplete="username"]')
+	username_input.send_keys(un)
+	time.sleep(1)
+	username_input.send_keys(Keys.ENTER)
 
+	time.sleep(5)
+	password_input = driver.find_element(By.CSS_SELECTOR, 'input[autocomplete="current-password"]')
+	password_input.send_keys(pw)
+	time.sleep(1)
+	password_input.send_keys(Keys.ENTER)
+	time.sleep(5)
 
-	soup = BeautifulSoup(driver.page_source, "html.parser")
-
-	# Scroll down a few times to load more results
-	body = driver.find_element(By.TAG_NAME, "body")
-
-	divs = soup.find_all('div', class_='DraftEditor-root')
-	divs = soup.find_all('div', {'data-testid': 'longformRichTextComponent'})
-	len(divs)
-
-	text = divs[0].text
-
-	query = "update tweets set text = '" + text + "' where id = '1899823082900259017'"
-	execute_query(query)
-
-	query = "select distinct conversation_id, text from tweets where id = conversation_id and text like 'https://t.co/%' "
+	query = "select distinct conversation_id, text from tweets where id = conversation_id and text like 'https://t.co/%' and created_at > 1742472000 "
 	df = pg_load_data(query)
 
 	tweet_ids = df.conversation_id.unique()
+	len(tweet_ids)
 
+	url = f"https://api.twitter.com/2/tweets"
+
+	headers = {
+		"Authorization": f"Bearer {ACTIVE_TWITTER_TOKENS[0]}"
+	}
+
+	params = {
+		"tweet.fields": "text,entities,attachments,author_id"
+		, "expansions": "referenced_tweets.id"
+	}
+
+	data = []
+	for i in range(0, len(tweet_ids), 100):
+		params["ids"] = ",".join([str(x) for x in tweet_ids[i:i+100]])
+		response = requests.get(url, headers=headers, params=params)
+		data.extend(response.json()['data'])
+	tweets_df = pd.DataFrame(data)
+	tweets_df.article
+	articles = tweets_df[tweets_df.article.notnull()]
+	for i, row in articles.iterrows():
+		print(i)
+		print(row['article']['title'])
+		article_id = row['id']
+		url = f'https://x.com/metaproph3t/article/{article_id}'
+		driver.get(url)
+		time.sleep(10)
+		html = driver.page_source
+		soup = BeautifulSoup(html, 'html.parser')
+		divs = soup.find_all('div', {'data-testid': 'longformRichTextComponent'})
+		len(divs)
+		text = row['article']['title'] + ' - ' + divs[0].text
+		text = text.replace("'", "''")  # Escape single quotes for SQL
+		text = text.replace("\\", "\\\\")  # Escape backslashes
+		query = "update tweets set text = '" + text + "' where id = " + article_id
+		pg_execute_query(query)
+	
+
+	tweet_ids = "', '".join(articles.id.tolist())
+	query = f"select t.* , coalesce(ta.username, ta.handle, 'None') as name, coalesce(ta.handle, 'None') as username from tweets t left join twitter_accounts ta on t.author_id = ta.id where t.id in ('{tweet_ids}')"
+	df = pg_load_data(query)
+	df['id'] = df['id'].astype(str)
+	df = clean_tweets_for_pc(df)
+	df['text'] = df['text'].apply(lambda x: x[:35000])
+	pc_upload_data(df, 'text', TWEETS_RAG_COLS, batch_size=100, index_name='slant', namespace='tweets')
+	return len(df)
 
 def get_accounts_from_projects():
 	accounts = pd.read_csv('~/Downloads/twitter-accounts.csv')

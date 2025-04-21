@@ -12,10 +12,10 @@ def slant_query_writer(state: GraphState) -> GraphState:
     # refined_query = prompt_refiner(state, 'Write a SQL query to answer the following question.')
     refined_query = state['refined_query']
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('slant_query_writer starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('slant_query_writer starting...')
     # log(f'params: {params}')
     # # Ensure params is a dictionary
     # if isinstance(params, str):
@@ -56,9 +56,9 @@ def slant_query_writer(state: GraphState) -> GraphState:
     """
 
     sql_query = state['llm'].invoke(prompt).content
-    log(f"Generated SQL Query: {sql_query}")
+    # log(f"Generated SQL Query: {sql_query}")
     time_taken = round(time.time() - start_time, 1)
-    log(f'slant_query_writer finished in {time_taken} seconds')
+    # log(f'slant_query_writer finished in {time_taken} seconds')
     return {'sql_query': sql_query, 'completed_tools': ["ProjectKolQueryRunner"], 'upcoming_tools': ["SlantQueryExecutor"]}
 
     # # Initialize model and output parser

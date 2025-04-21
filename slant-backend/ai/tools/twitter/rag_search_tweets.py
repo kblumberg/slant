@@ -21,10 +21,10 @@ def rag_search_tweets(state: JobState) -> JobState:
         , "start_time": 0
         , "end_time": 0
     }
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('starting rag_search_tweets...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('starting rag_search_tweets...')
     # log(f'params: {params}')
     # Ensure params is a dictionary
     if isinstance(params, str):
@@ -37,7 +37,7 @@ def rag_search_tweets(state: JobState) -> JobState:
     end_time = params["end_time"] if 'end_time' in params and params["end_time"] > 0 else int(time.time())
 
     refined_twitter_prompt = twitter_prompt_refiner(state)
-    log(f'refined_twitter_prompt: {refined_twitter_prompt}')
+    # log(f'refined_twitter_prompt: {refined_twitter_prompt}')
     # refined_query = prompt_refiner(state, 'Search a RAG database of tweets.')
     # refined_query = params["query"]
 
@@ -87,9 +87,9 @@ def rag_search_tweets(state: JobState) -> JobState:
     # log('tweets')
     # log(tweets)
     new_tweets = list(state['tweets']) + tweets
-    unique_tweets = {tweet.id: tweet for tweet in new_tweets}.values()  
+    unique_tweets = {tweet.id: tweet for tweet in new_tweets}.values()
     time_taken = round(time.time() - start_time, 1)
-    log(f'rag_search_tweets finished in {time_taken} seconds')
+    # log(f'rag_search_tweets finished in {time_taken} seconds')
     return {'tweets': unique_tweets, 'completed_tools': ['RagSearchTweets']}
 
 
@@ -101,11 +101,11 @@ def get_tweets_by_project_ids_and_start_time(params: TweetSearchParams) -> str:
         - start_time: a unix timestamp in seconds (int)
         - top_n_tweets: the number of tweets to return for each project (int, default to 50 unless there is a specific reason to change this)
     """
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('get_tweets_by_project_ids_and_start_time')
-    log(f'params: {params}')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('get_tweets_by_project_ids_and_start_time')
+    # log(f'params: {params}')
     # Ensure params is a dictionary
     if isinstance(params, str):
         try:
@@ -113,9 +113,9 @@ def get_tweets_by_project_ids_and_start_time(params: TweetSearchParams) -> str:
         except json.JSONDecodeError:
             return "Invalid JSON input"
 
-    log(f'params["project_ids"]: {params["project_ids"]}')
-    log(f'params["start_time"]: {params["start_time"]}')
-    log(f'params["top_n_tweets"]: {params["top_n_tweets"]}')
+    # log(f'params["project_ids"]: {params["project_ids"]}')
+    # log(f'params["start_time"]: {params["start_time"]}')
+    # log(f'params["top_n_tweets"]: {params["top_n_tweets"]}')
     """Performs a search on a postgres database of projects."""
     
     # Parse the query and construct SQL
@@ -152,8 +152,8 @@ def get_tweets_by_project_ids_and_start_time(params: TweetSearchParams) -> str:
     # Execute query and get results
     try:
         results_df = pg_load_data(query)
-        log('results_df')
-        log(results_df)
+        # log('results_df')
+        # log(results_df)
         if len(results_df) == 0:
             return "No matching projects found"
             

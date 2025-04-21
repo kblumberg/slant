@@ -29,11 +29,23 @@ from ai.tools.flipside.write_flipside_query_or_investigate_data import write_fli
 from ai.tools.flipside.write_flipside_query import write_flipside_query
 from ai.tools.flipside.execute_flipside_query import execute_flipside_query
 from ai.tools.utils.format_for_highcharts import format_for_highcharts
-
+from ai.tools.flipside.verify_flipside_query import verify_flipside_query
+from ai.tools.flipside.fix_flipside_query import fix_flipside_query
+from ai.tools.flipside.improve_flipside_query import improve_flipside_query
+from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
+from ai.tools.utils.tool_selector import tool_selector
+from ai.tools.utils.tool_executor import tool_executor
+from ai.tools.analyst.context_saver import context_saver
 
 def execution_logic(state: JobState) -> str:
+    log(f'execution_logic:')
+    log('follow_up_questions')
+    log(state['follow_up_questions'])
+    log(f'tried_tools: {state["tried_tools"]}')
     if len(state["follow_up_questions"]) == 0:
         return "CreateAnalysisDescription"
+    elif state["tried_tools"] == 0:
+        return "ToolSelector"
     else:
         return "RespondWithContext"
 
@@ -70,47 +82,84 @@ def join_tools_gate(state: JobState) -> str:
     # Check if all upcoming tools have been completed
     remaining_tools = list(set(state['upcoming_tools']) - set(state['completed_tools']))
     
-    print(f'Remaining tools: {remaining_tools}')
-    print(f'Upcoming tools: {sorted(list(set(state["upcoming_tools"])))}')
-    print(f'Completed tools: {sorted(list(set(state["completed_tools"])))}')
+    # log(f'Remaining tools: {remaining_tools}')
+    # log(f'Upcoming tools: {sorted(list(set(state["upcoming_tools"])))}')
+    # log(f'Completed tools: {sorted(list(set(state["completed_tools"])))}')
     
     # If no remaining tools, proceed to RespondWithContext
     if len(remaining_tools) == 0:
-        print('All tools completed. Moving to RespondWithContext.')
+        # log('All tools completed. Moving to RespondWithContext.')
         return "AskFollowUpQuestions"
     
     # Otherwise, continue waiting
-    print('Still waiting for tools to complete.')
+    # log('Still waiting for tools to complete.')
     return "JoinTools"
 
-def flipside_execution_logic(state: JobState) -> str:
-    if state["flipside_sql_attempts"] <= 2 and state["flipside_sql_error"] and not 'QUERY_RUN_TIMEOUT_ERROR' in state["flipside_sql_error"]:
-        return "WriteFlipsideQuery"
+def post_flipside_execution_logic(state: JobState) -> str:
+    if state["flipside_sql_attempts"] < MAX_FLIPSIDE_SQL_ATTEMPTS and state["flipside_sql_error"] and not 'QUERY_RUN_TIMEOUT_ERROR' in str(state["flipside_sql_error"]):
+        # there is an error but it's not a timeout error
+        # and we have fewer than 3 attempts
+        return "FixFlipsideQuery"
+    elif (state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS and state["flipside_sql_error"]) or 'QUERY_RUN_TIMEOUT_ERROR' in str(state["flipside_sql_error"]):
+        # there is an error we cannot fix
+        return "RespondWithContext"
     else:
+        # we have successfully executed the query
+        return "VerifyFlipsideQuery"
+
+def verify_results_logic(state: JobState) -> str:
+    if not state["verified_flipside_sql_query"]:
+        # the existing query and results are good
         return "FormatForHighcharts"
+    elif state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS:
+        # we've exhausted our attempts
+        return "FormatForHighcharts"
+    elif state["flipside_sql_error"]:
+        # we have an error
+        return "FixFlipsideQuery"
+    else:
+        # we have an updated version of the query
+        return "ExecuteFlipsideQuery"
+
+def wrap_node(fn, name=None):
+    node_name = name or fn.__name__
+    def wrapped(state: JobState):
+        log(f"🟡 Entering node: {node_name}")
+        start_time = time.time()
+        result = fn(state)
+        end_time = time.time()
+        log(f"✅ Finished node: {node_name} in {end_time - start_time:.2f}s")
+        return result
+    return wrapped
 
 def make_graph():
     # Initialize the graph
     builder = StateGraph(JobState)
 
-    builder.add_node("ParseAnalyses", parse_analyses)
-    builder.add_node("WebSearch", web_search)
-    builder.add_node("RagSearchTweets", rag_search_tweets)
-    builder.add_node("LoadExampleFlipsideQueries", load_example_flipside_queries)
-    builder.add_node("AskFollowUpQuestions", ask_follow_up_questions)
-    builder.add_node("HumanInput", human_input)
-    builder.add_node("DecideFlipsideTables", decide_flipside_tables)
-    builder.add_node("DecideFlipsideTablesFromQueries", decide_flipside_tables_from_queries)
-    builder.add_node("PrintJobState", print_job_state)
-    builder.add_node("CreateAnalysisDescription", create_analysis_description)
-    builder.add_node("RespondWithContext", respond_with_context)
-    builder.add_node("PreQueryClarifications", pre_query_clarifications)
-    builder.add_node("RagSearchProjects", rag_search_projects)
-    builder.add_node("WriteFlipsideQueryOrInvestigateData", write_flipside_query_or_investigate_data)
-    builder.add_node("WriteFlipsideQuery", write_flipside_query)
-    builder.add_node("ExecuteFlipsideQuery", execute_flipside_query)
-    builder.add_node("FormatForHighcharts", format_for_highcharts)
-    builder.add_node("JoinTools", lambda state: {})
+    builder.add_node("ParseAnalyses", wrap_node(parse_analyses))
+    builder.add_node("WebSearch", wrap_node(web_search))
+    builder.add_node("RagSearchTweets", wrap_node(rag_search_tweets))
+    builder.add_node("LoadExampleFlipsideQueries", wrap_node(load_example_flipside_queries))
+    builder.add_node("AskFollowUpQuestions", wrap_node(ask_follow_up_questions))
+    builder.add_node("ToolSelector", wrap_node(tool_selector))
+    builder.add_node("ToolExecutor", wrap_node(tool_executor))
+    builder.add_node("HumanInput", wrap_node(human_input))
+    builder.add_node("DecideFlipsideTables", wrap_node(decide_flipside_tables))
+    builder.add_node("DecideFlipsideTablesFromQueries", wrap_node(decide_flipside_tables_from_queries))
+    builder.add_node("PrintJobState", wrap_node(print_job_state))
+    builder.add_node("CreateAnalysisDescription", wrap_node(create_analysis_description))
+    builder.add_node("RespondWithContext", wrap_node(respond_with_context))
+    builder.add_node("PreQueryClarifications", wrap_node(pre_query_clarifications))
+    builder.add_node("RagSearchProjects", wrap_node(rag_search_projects))
+    builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(write_flipside_query_or_investigate_data))
+    builder.add_node("WriteFlipsideQuery", wrap_node(write_flipside_query))
+    builder.add_node("FixFlipsideQuery", wrap_node(fix_flipside_query))
+    builder.add_node("ExecuteFlipsideQuery", wrap_node(execute_flipside_query))
+    builder.add_node("VerifyFlipsideQuery", wrap_node(verify_flipside_query))
+    builder.add_node("ImproveFlipsideQuery", wrap_node(improve_flipside_query))
+    builder.add_node("FormatForHighcharts", wrap_node(format_for_highcharts))
+    builder.add_node("ContextSaver", wrap_node(context_saver))
+    builder.add_node("JoinTools", wrap_node(lambda state: {}, name="JoinTools"))
 
     builder.add_edge(START, "ParseAnalyses")
     builder.add_edge("ParseAnalyses", "RagSearchTweets")
@@ -130,15 +179,22 @@ def make_graph():
     builder.add_conditional_edges("JoinTools", join_tools_gate)
 
     builder.add_conditional_edges("AskFollowUpQuestions", execution_logic)
+    # builder.add_edge("AskFollowUpQuestions", "CreateAnalysisDescription")
+    # builder.add_edge("CreateAnalysisDescription", "ToolSelector")
+    builder.add_edge("ToolSelector", "ToolExecutor")
+    builder.add_edge("ToolExecutor", "AskFollowUpQuestions")
     builder.add_edge("CreateAnalysisDescription", "WriteFlipsideQueryOrInvestigateData")
     builder.add_edge("WriteFlipsideQueryOrInvestigateData", "WriteFlipsideQuery")
-    builder.add_edge("WriteFlipsideQuery", "ExecuteFlipsideQuery")
-    builder.add_conditional_edges("ExecuteFlipsideQuery", flipside_execution_logic)
+    builder.add_edge("WriteFlipsideQuery", "ImproveFlipsideQuery")
+    builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
+    builder.add_conditional_edges("ExecuteFlipsideQuery", post_flipside_execution_logic)
+    builder.add_conditional_edges("VerifyFlipsideQuery", verify_results_logic)
 
     # builder.add_edge("RagSearchTweets", "AskFollowUpQuestions")
     # builder.add_edge("AskFollowUpQuestions", "RespondWithContext")
     builder.add_edge("FormatForHighcharts", "RespondWithContext")
-    builder.add_edge("RespondWithContext", "PrintJobState")
+    builder.add_edge("RespondWithContext", "ContextSaver")
+    builder.add_edge("ContextSaver", "PrintJobState")
     # builder.add_edge("ParseAnalyses", "DecideFlipsideTables")
     # builder.add_conditional_edges("DecideFlipsideTablesFromQueries", execution_logic_2)
     # builder.add_edge("ParseAnalyses", "DecideFlipsideTablesFromQueries")
@@ -149,7 +205,7 @@ def make_graph():
 
 def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     # query = 'how many sharky nft loans have been taken in the last 5 days?'
-    log('ask_analyst')
+    log(f'ask_analyst: {user_prompt}')
     start_time = time.time()
 
     sync_connection = psycopg.connect(POSTGRES_ENGINE)
@@ -161,8 +217,8 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     user_message_id = str(uuid.uuid4())
     memory.save_user_message(user_message_id, user_prompt)
     memory.load_messages()
-    log('memory')
-    log(memory.messages)
+    # log('memory')
+    # log(memory.messages)
     graph = make_graph()
     llm = ChatOpenAI(
         model="gpt-4o-mini",
@@ -174,7 +230,7 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         openai_api_key=OPENAI_API_KEY,
         temperature=0.01,
     )
-    resoning_llm = ChatOpenAI(
+    reasoning_llm = ChatOpenAI(
         model="o3-mini",
         # model="o1",
         openai_api_key=OPENAI_API_KEY
@@ -201,16 +257,24 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , conversation_id=conversation_id
         , analysis_description=''
         , messages=memory.messages
+        , flipside_sql_queries=[]
+        , flipside_sql_errors=[]
+        , flipside_sql_query_results=[]
         , flipside_sql_query=''
+        , improved_flipside_sql_query=''
+        , verified_flipside_sql_query=''
         , flipside_sql_error=''
         , flipside_sql_attempts=0
+        , tried_tools=0
+        , run_tools=[]
         , analyses=[]
         , projects=[]
         , tweets=[]
         , llm=llm
         , complex_llm=complex_llm
-        , resoning_llm=resoning_llm
+        , reasoning_llm=reasoning_llm
         , memory=memory
+        , additional_contexts=[]
         , completed_tools=[]
         , upcoming_tools=['RagSearchTweets','RagSearchProjects','LoadExampleFlipsideQueries','WebSearch']
         , flipside_tables=[]
@@ -218,14 +282,15 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , flipside_sql_query_result=pd.DataFrame()
         , web_search_results=''
         , tavily_client=tavily_client
+        , context_summary=''
     )
     memory.save_conversation(state)
     message = {
         "status": "Analyzing query",
     }
     val = f"data: {json.dumps(message)}\n\n"
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     yield val
 
     response = {}
@@ -245,7 +310,7 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         flipside_sql_query_result = chunk.get('flipside_sql_query_result')
         if len(flipside_sql_query_result):
             x_col = 'timestamp' if 'timestamp' in flipside_sql_query_result.columns else 'category' if 'category' in flipside_sql_query_result.columns else ''
-            log(f'x_col: {x_col}')
+            # log(f'x_col: {x_col}')
             # flipside_sql_query_result = flipside_sql_query_result.rename(columns={'timestamp': 'x'})
             # if x_col:
             chart_data = [
@@ -261,9 +326,9 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
                 'mode': x_col
             }
             if 'timestamp' in flipside_sql_query_result.columns and 'category' in flipside_sql_query_result.columns:
-                log('timestamp and category in flipside_sql_query_result')
-                log(highcharts_config)
-                log(highcharts_config.keys())
+                # log('timestamp and category in flipside_sql_query_result')
+                # log(highcharts_config)
+                # log(highcharts_config.keys())
                 if 'series' in highcharts_config.keys():
                     categories = flipside_sql_query_result['category'].unique().tolist()
                     columns = sorted(list(set([ x['column'] for x in highcharts_config['series'] ])))
@@ -275,11 +340,11 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
                             cur = flipside_sql_query_result[flipside_sql_query_result['category'] == cat][[x_col, col]].dropna().values.tolist()
                             if len(cur):
                                 chart_data.append({ 'name': cat, 'data': cur })
-                    log('chart_data')
-                    log(chart_data)
+                    # log('chart_data')
+                    # log(chart_data)
                     response['highcharts_data']['series'] = chart_data
-            log('highcharts_data')
-            log(response['highcharts_data'])
+            # log('highcharts_data')
+            # log(response['highcharts_data'])
 
         if not upcoming_tool in ['Unknown tool', 'Analyzing query']:
             message = {
@@ -290,8 +355,8 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     end_time = time.time()
     memory.save_agent_message(chunk)
     memory.save_state_snapshot(chunk)
-    log('response')
-    log(response)
+    # log('response')
+    # log(response)
 
     # val = memory.save_context(
     #     inputs={
@@ -317,19 +382,19 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         "response": html_output,
         "data": data
     }
-    log('Finished!')
-    log(message)
+    # log('Finished!')
+    # log(message)
     print(f'Time taken: {int(end_time - start_time)} seconds')
     val = f"data: {json.dumps(message)}\n\n"
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     yield val
     message = {
         "status": "done",
     }
     val = f"data: {json.dumps(message)}\n\n"
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     return val
 
     # return val

@@ -47,6 +47,7 @@ def score_accounts():
 	g = g.sort_values('score', ascending=False)
 	g.loc[g.score > q99, 'score'] = q99
 	g['score'] = (g.score * 100 / q99).apply(lambda x: round(x, 2))
+	g = g[g.score > 0]
 	g[g.username == 'runkellen']
 	g.head(20)
 

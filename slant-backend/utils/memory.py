@@ -1,3 +1,4 @@
+import json
 from typing import Dict, List, Any, Tuple, TypedDict
 import pandas as pd
 from langchain_core.chat_history import BaseChatMessageHistory, BaseMessage
@@ -7,8 +8,9 @@ from constants.keys import POSTGRES_ENGINE
 import psycopg2
 from utils.utils import log, get_timestamp
 from langchain_core.messages import SystemMessage
-from classes.JobState import JobState, state_to_json
+from classes.JobState import JobState
 from utils.db import pg_load_data, pg_execute_query
+from ai.tools.utils.utils import state_to_reference_materials
 
 class PostgresConversationMemory(BaseChatMessageHistory):
     def __init__(
@@ -70,8 +72,8 @@ class PostgresConversationMemory(BaseChatMessageHistory):
         order by timestamp asc
         """
         df = pg_load_data(query)
-        log('load_messages df')
-        log(df)
+        # log('load_messages df')
+        # log(df)
 
         messages = []
         for _, row in df.iterrows():
@@ -133,8 +135,8 @@ class PostgresConversationMemory(BaseChatMessageHistory):
         return True
 
     def save_state_snapshot(self, state: JobState) -> None:
-        log('save_state_snapshot')
-        log(state)
+        # log('save_state_snapshot')
+        # log(state)
 
         # tools = list(set(state['completed_tools']))
 
@@ -164,7 +166,7 @@ class PostgresConversationMemory(BaseChatMessageHistory):
 
         values = (
             state['user_message_id'],
-            state_to_json(state)
+            self.state_to_json(state)
         )
 
         # Example connection and insert
@@ -238,3 +240,28 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             history_message = None
         return history_message
 
+    def state_to_json(self, state: JobState):
+        j = {
+            'user_prompt': state['user_prompt'],
+            'response': state['response'],
+            'analysis_description': state['analysis_description'],
+            'web_search_results': state['web_search_results'],
+            'flipside_example_queries': state['flipside_example_queries'].query_id.tolist(),
+            'flipside_sql_query': state['flipside_sql_query'],
+            'improved_flipside_sql_query': state['improved_flipside_sql_query'],
+            'verified_flipside_sql_query': state['verified_flipside_sql_query'],
+            'analyses': [str(x) for x in state['analyses']],
+            'reference_materials': state_to_reference_materials(state),
+            'context_summary': state['context_summary'],
+            # 'follow_up_questions': state['follow_up_questions'],
+            # 'tweets': state['tweets'],
+            # 'user_id': state['user_id'],
+            # 'conversation_id': state['conversation_id'],
+            # 'highcharts_config': state['highcharts_config'],
+            # 'analyses': state['analyses'],
+            # 'completed_tools': state['completed_tools'],
+            # 'flipside_tables': state['flipside_tables'],
+            # 'flipside_example_queries': state['flipside_example_queries'],
+            # 'web_search_results': state['web_search_results']
+        }
+        return json.dumps(j)

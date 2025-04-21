@@ -3,28 +3,19 @@ import time
 import json
 from utils.utils import log
 from classes.JobState import JobState
-from ai.tools.utils.utils import parse_messages
+from ai.tools.utils.utils import parse_messages, state_to_reference_materials
 
 def ask_follow_up_questions(state: JobState) -> JobState:
 
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('ask_follow_up_questions starting...')
-    additional_context = ''
-    if len(state['tweets']) > 0:
-        additional_context = additional_context + '**TWEETS**: \n' + '\n'.join([ str(tweet.text) for tweet in state['tweets']])
-    if len(state['web_search_results']) > 0:
-        additional_context = additional_context + '**WEB SEARCH RESULTS**: \n' + state['web_search_results']
-    if len(state['projects']) > 0:
-        additional_context = additional_context + '**PROJECTS**: \n' + '\n'.join([ str(project.name) + ': ' + str(project.description) for project in state['projects']])
-    if len(state['flipside_example_queries']) > 0:
-        example_queries = '\n\n'.join(state['flipside_example_queries'].text.apply(lambda x: x[:10000]).values)
-        additional_context = additional_context + '**RELATED FLIPSIDE QUERIES**: \n' + example_queries
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('ask_follow_up_questions starting...')
+    reference_materials = state_to_reference_materials(state, preface = "The following is additional context that might be relevant to the user's prompt. If it is relevant, use it to generate clarifying questions. If not, ignore it.")
 
-    log('ask_follow_up_questions additional_context')
-    log(additional_context)
+    # log('ask_follow_up_questions additional_context')
+    # log(additional_context)
 
     asked_followups_before = len(state['memory'].message_df) > 1
     previous_messages = ''
@@ -55,35 +46,58 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         ## Objective:
         Identify what needs clarification before a junior blockchain analyst begins the actual work. Focus on missing details, ambiguous intent, and necessary filters, groupings, or thresholds.
 
+        ### General Guidelines
         You should consider:
-
         - What specific data needs to be extracted or filtered (e.g., by `program_id`, `tx_from`, `tx_to`, `block_timestamp`, etc.)
         - What calculations or groupings are required (e.g., daily vs cumulative totals, wallet segmentation)
         - Whether additional definitions or thresholds are needed (e.g., define a "whale" wallet or "active" user)
-        - Any ambiguity in the user's request that would require follow-up
-        - Avoid asking questions that are already addressed in prior messages
-        - Do not ask specifics about how to perform the analysis, only ask clarifying questions about the user's request
-        - Do not ask any technical questions about which tables or columns to use
+        - Any ambiguity in the user's request that would require clarification
+        - Avoid asking questions that are already answered in the **user’s prompt** or previous messages
+        - Do not ask how the analysis will be performed — focus only on what needs to be clarified
+        - Do not ask technical questions about which tables or columns to use
+        - The user **does not** see the additional context. If you reference something from it, you must **quote it fully and clearly**
+        - Do not mention tables or columns specifically — only concepts
 
-        **GENERAL ASSUMPTIONS**:
-        Unless specifically states, assume the following:
-        - All standard decoded transaction-level data is available for querying and we know how to pull the data.
-        - The user is interested in **Solana mainnet** blockchain on-chain analysis.
-        - There is no end date for the analysis (can go to present time).
-        - Use UTC time zone.
+        ## 💡 Preference Rules
+        - Do not mention “previous queries” "tweets" or "web search results" "the context" "the official sources" (the user does not see them) — instead, explicitly reference what you see.
+        - If you have specifics, use that (e.g. instead of "since token launched", say "since token launched on YYYY-MM-DD")
+        - If the context includes something like a launch date or token metadata, use it directly and precisely. E.g., "I see the token launched on 2024-03-12. Should I start the chart from that date?"
+        - If you are not 99% sure about the correct program id, mint, address, etc., confirm with the user.
+
+        **If possible, make a check instead of asking a question**
+        Examples:
+        - Instead of asking "Which $XXX token are you referring to?", say "I see there is a $XXX token with address YYY. Is that the one you want?".
+        - Instead of asking "What timeframe do you want me to analyze?", say "I see this program launched on YYYY-MM-DD. Do you want to analyze the data from then to now?".
 
         ---
 
-        **TASK**: Given the user prompt and additional context, return ONLY a valid JSON list of clarifying questions that should be asked before analysis begins. If you do not need to ask any questions, return an empty list.
+        ## ⚠️ Assumptions
+
+        Unless otherwise stated:
+        - The user is asking about on-chain activity on **Solana mainnet**
+        - The analysis runs up to the present day (no end date)
+        - Time zone is **UTC**
+        - All standard decoded on-chain data is queryable
+
+        ---
+
+        ## 📥 Inputs
 
         {previous_messages}
 
         **USER PROMPT**:
         {user_prompt}
 
-        **ADDITIONAL CONTEXT**:
-        The following is additional context that might be relevant to the user's prompt. If it is relevant, use it to generate clarifying questions. If not, ignore it.
-        {additional_context}
+        {reference_materials}
+
+        ---
+
+        ## 📝 TASK
+
+        Write only a **JSON array** of clarifying questions. Make your checks precise.  
+        If no clarifying questions are needed, return an empty list.
+
+        ---
 
         ---
 
@@ -135,17 +149,17 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     """
     formatted_prompt = prompt.format(
         user_prompt=state['user_prompt'],
-        additional_context=additional_context,
+        reference_materials=reference_materials,
         previous_messages=previous_messages
     )
-    log('formatted_prompt')
-    log(formatted_prompt)
-    response = state['resoning_llm'].invoke(formatted_prompt).content
+    # log('formatted_prompt')
+    # log(formatted_prompt)
+    response = state['reasoning_llm'].invoke(formatted_prompt).content
     follow_up_questions = re.sub(r'```json', '', response)
     follow_up_questions = re.sub(r'```', '', follow_up_questions)
     follow_up_questions = json.loads(follow_up_questions)
-    log('follow_up_questions')
+    log('ask_follow_up_questions')
     log(follow_up_questions)
     time_taken = round(time.time() - start_time, 1)
-    log(f'ask_follow_up_questions finished in {time_taken} seconds')
+    # log(f'ask_follow_up_questions finished in {time_taken} seconds')
     return {'follow_up_questions': follow_up_questions, 'completed_tools': ["AskFollowUpQuestions"]}

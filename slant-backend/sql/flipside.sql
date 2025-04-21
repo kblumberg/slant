@@ -20693,7 +20693,7 @@ with tweets0 as (
 	-- singular qrts
 	select *
 	, case when is_qt = 1 then 2 else 1 end as qt_mult
-	, greatest(kol_score * 1.75, log(10, greatest(10, user_followers - 250))) + (is_kol * 2.5) + is_core_audience as acct_score
+	, greatest(kol_score * 1.75, # log(10, greatest(10, user_followers - 250))) + (is_kol * 2.5) + is_core_audience as acct_score
 	, power(0.9, greatest(n_prev_rts - 3, 0)) as n_prev_rts_mult
 	, case when is_kol = 1 then greatest(0.33, n_prev_rts_mult) else n_prev_rts_mult end as rts_mult
 	, qt_mult * acct_score * rts_mult as score

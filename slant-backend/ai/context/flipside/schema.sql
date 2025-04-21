@@ -1,3 +1,8 @@
+
+Here is the schema, tables, and columns for the Flipside database. Use this to understand the available tables and columns.
+
+================================================================================
+
 Schema: core
 Table: solana.core.dim_labels
 Purpose: Provides labels for Solana addresses (programs, accounts, etc.).
@@ -155,8 +160,16 @@ Key Columns:
 
 Schema: price
 
+Schema Notes for `solana.price.ez_prices_hourly` and `solana.price.ez_asset_metadata`:
+- Does NOT contain data for all tokens; if you are looking for a token that is not in this table, you can use the `solana.defi.ez_dex_swaps` table to get the price
+- When joining or filtering for analysis, ALWAYS use `token_address` - DO NOT USE `symbol` or `name` to filter because multiple tokens can have the same symbol or name
+- When displaying data to the user, though, use `symbol` or `name` to make it more readable
+- If doing exploratory analysis, you can use `symbol` or `name` to filter to then use `token_address` for final analysis
+
 Table: solana.price.ez_prices_hourly
 Purpose: Provides price data for tokens on Solana
+Notes:
+- If the token is not in `solana.price.ez_prices_hourly`, you can calculate the price using the `solana.defi.ez_dex_swaps` table instead
 Key Columns:
 - hour
 - token_address
@@ -168,7 +181,7 @@ Key Columns:
 - is_imputed: If price was estimated/carried forward
 
 
-Table: solana.price.dim_asset_metadata
+Table: solana.price.ez_asset_metadata
 Purpose: Provides metadata for tokens on Solana
 Key Columns:
 - token_address
@@ -185,9 +198,15 @@ Schema: defi
 
 Table: solana.defi.ez_dex_swaps
 Purpose: Records DEX swaps
-IMPORTANT: Use this table instead of fact_swaps
+Notes:
+- Use this table instead of fact_swaps
+- Only shows swaps on the underlying DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix'); to get Jupiter aggregator swaps use `fact_swaps_jupiter_inner` or `fact_swaps_jupiter_summary`
+- `swap_from_amount_usd` and `swap_to_amount_usd` will generally be roughly the same values (except for fees)
+- If we dont have price data for `swap_from_mint` then `swap_from_amount_usd` will be null (in this case, you can use `swap_to_amount_usd` to get usd value)
+- If we dont have price data for `swap_to_mint` then `swap_to_amount_usd` will be null (in this case, you can use `swap_from_amount_usd` to get usd value)
+
 Key Columns:
-- swap_program: Name of DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix') - note: excludes jupiter swaps (use fact_swaps_jupiter_inner instead)
+- swap_program: Name of DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix')
 - block_id
 - block_timestamp
 - tx_id
@@ -196,11 +215,11 @@ Key Columns:
 - swap_from_mint
 - swap_from_symbol
 - swap_from_amount
-- swap_from_amount_usd
+- swap_from_amount_usd (can be null if flipside doesnt have price data)
 - swap_to_mint
 - swap_to_symbol
 - swap_to_amount
-- swap_to_amount_usd
+- swap_to_amount_usd (can be null if flipside doesnt have price data)
 
 
 Table: solana.defi.fact_swaps
@@ -257,7 +276,8 @@ Key Columns:
 - succeeded
 - mint
 - burn_authority
-- amount
+- burn_amount
+- decimal
 - program_id
 
 
@@ -270,9 +290,10 @@ Key Columns:
 - succeeded
 - mint
 - mint_authority
-- amount
+- mint_amount
 - recipient: Account receiving minted tokens
 - program_id
+- decimal
 
 
 Table: solana.defi.fact_swaps_jupiter_inner
@@ -570,3 +591,26 @@ Key Columns:
 - unique_program_calls: Number of unique programs called
 - native_transfers_amount: Total SOL transferred
 - native_transfers_count: Number of SOL transfers
+
+
+================================================================================
+
+
+Schema: crosschain
+
+Table: crosschain.core.dim_dates
+Purpose: A reference table for dates to be used in joins
+Key Columns:
+- date_day
+- prior_date_day
+- next_date_day
+- day_of_week_name (Monday, Tuesday, etc.)
+- day_of_week_name_short (Mon, Tue, etc.)
+
+
+================================================================================
+
+
+General Notes:
+- to get current circulating supply, take `mint_amount` from `fact_token_mint_actions` and then subtract `burn_amount` from `solana.defi.fact_token_burn_actions`
+- market cap = price * circulating supply

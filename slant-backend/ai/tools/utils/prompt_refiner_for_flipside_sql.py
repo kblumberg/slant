@@ -27,6 +27,6 @@ def prompt_refiner_for_flipside_sql(state: GraphState) -> str:
 
     response = state['llm'].invoke(messages).content
     time_taken = round(time.time() - start_time, 1)
-    log(f'prompt_refiner_for_flipside_sql finished in {time_taken} seconds')
-    log(response)
+    # log(f'prompt_refiner_for_flipside_sql finished in {time_taken} seconds')
+    # log(response)
     return response

@@ -6,7 +6,7 @@ from langchain.schema import SystemMessage, HumanMessage
 
 def respond_with_context(state: JobState):
     start_time = time.time()
-    log('respond_with_context starting...')
+    # log('respond_with_context starting...')
     if len(state['follow_up_questions']) > 0:
         # Construct prompt dynamically based on state
 
@@ -26,11 +26,12 @@ def respond_with_context(state: JobState):
         # Call LLM to get the decision
         response = state['llm'].invoke(messages).content
         time_taken = round(time.time() - start_time, 1)
-        log(f'respond_with_context finished in {time_taken} seconds')
+        # log(f'respond_with_context finished in {time_taken} seconds')
         return {'response': response, 'completed_tools': ["RespondWithContext"]}
     elif len(state['write_flipside_query_or_investigate_data']) > 0:
 
-        flipside_sql_query_result = '## **Data Analyst Result**: \n Here is some data that may be relevant to the question. Prioritize this data over other information to answer the question. However, DO NOT give a list of data points in your response, just focus on key insights and overviews. \n```json' + state['flipside_sql_query_result'].to_json(orient='records') + '```' if len(state['flipside_sql_query_result']) else ''
+        flipside_sql_query_result = '## **Data Analyst Result**: \n Here is some data that may be relevant to the question. Prioritize this data over other information to answer the question. However, DO NOT give a list of data points in your response, just focus on key insights and overviews. \n```' + state['flipside_sql_query_result'].to_markdown() + '```' if len(state['flipside_sql_query_result']) else ''
+
 
         messages = [
             SystemMessage(content="You are an expert in the solana blockchain ecosystem and helping to answer a question with the context of information."),
@@ -41,7 +42,7 @@ def respond_with_context(state: JobState):
 
                 {flipside_sql_query_result}
 
-                Based on this information, answer the user query. Feel free to use the context to answer the question, but ignore the context if it is not relevant to the question.
+                Based on this information, provide a response to the user query in 1-3 key points and a summary. There will be a chart in the response, so you do not have to be verbose, just a summary and 1-3 things that stand out.
 
                 Note that the current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M")}. If there are dates mentioned in the question or context, keep this in mind.
 
@@ -52,20 +53,21 @@ def respond_with_context(state: JobState):
                     - Bold for emphasis (**bold text**)
                     - Links in markdown format ([text](url))
                 Make the response easy to digest and understand.
-                Include links to tweets, docs, twitter accounts, or other sources when relevant.
-                If you reference data from tweets, be sure to link the tweet.
-                Unless specifically asked, do not include any code in your response.
-
-                If the question is open ended, be thorough and provide a detailed answer.
-
-                If the question is specific, be concise and provide a clear answer.
+                Unless specifically asked, do not include any code in your response or anything besides the summary and 1-3 key points.
             """),
-        ]
+        ] if len(flipside_sql_query_result) <= 50000 else [
+            SystemMessage(content="You are an expert in the solana blockchain ecosystem and helping to answer a question with the context of information."),
+            HumanMessage(content=f"""
+                You have just answered a question with the following context: {state['analysis_description']}
+
+                Tell the user that you have answered the question (with a chart that will be provided above) and ask if they have any follow up questions.
+            """),
+        ] 
 
         # Call LLM to get the decision
-        answer = state['llm'].invoke(messages).content
+        answer = state['reasoning_llm'].invoke(messages).content
         time_taken = round(time.time() - start_time, 1)
-        log(f'answer_with_context finished in {time_taken} seconds')
+        # log(f'answer_with_context finished in {time_taken} seconds')
         return {'response': answer, 'completed_tools': ["RespondWithContext"]}
     elif len(state['write_flipside_query_or_investigate_data']) > 0:
         return {'response': state['write_flipside_query_or_investigate_data'], 'completed_tools': ["RespondWithContext"]}

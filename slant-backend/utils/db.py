@@ -15,8 +15,8 @@ from flipside import Flipside
 
 
 def pg_execute_query(query):
-	log('pg_execute_query')
-	log(query)
+	# log('pg_execute_query')
+	# log(query)
 	conn = psycopg2.connect(POSTGRES_ENGINE)
 	cursor = conn.cursor()
 	cursor.execute(query)
@@ -24,8 +24,8 @@ def pg_execute_query(query):
 	conn.close()
 
 def pc_execute_query(query, index_name="slant", namespace="flipside_queries", filter_conditions={}, top_k=8):
-	log('pc_execute_query')
-	log(query)
+	# log('pc_execute_query')
+	# log(query)
 	pc = Pinecone(api_key=PINECONE_API_KEY)
 	index = pc.Index(index_name, namespace=namespace)
 	embeddings = OpenAIEmbeddings()
@@ -45,18 +45,18 @@ def pc_load_data(index, namespace=None):
 
 	# Get total vector count
 	total_vectors = index.describe_index_stats()['total_vector_count']
-	log(f"Total vectors: {total_vectors}")
+	# log(f"Total vectors: {total_vectors}")
 
 	all_records = pd.DataFrame()
 
 	# Iterate over namespaces (if applicable)
 	for n in index.describe_index_stats()['namespaces']:
-		log(f"Namespace: {n}")
+		# log(f"Namespace: {n}")
 		it = 0
 		if namespace is None or namespace == n:
 			for ids_chunk in index.list(namespace=n):
 				it += 1
-				log(f"#{it}")
+				# log(f"#{it}")
 				# Fetch records in chunks
 				records_chunk = index.fetch(ids=ids_chunk, namespace=n)
 				cur = pd.DataFrame(records_chunk.to_dict()['vectors'])
@@ -66,8 +66,8 @@ def pc_load_data(index, namespace=None):
 
 def pg_load_data(query, timeout_in_seconds=0):
 	try:
-		log('pg_load_data')
-		log(query)
+		# log('pg_load_data')
+		# log(query)
 		conn = psycopg2.connect(POSTGRES_ENGINE)
 		cursor = conn.cursor()
 		if timeout_in_seconds > 0:
@@ -77,14 +77,14 @@ def pg_load_data(query, timeout_in_seconds=0):
 		df.columns = [x.lower() for x in df.columns]
 		return df
 	except Exception as e:
-		log('pg_load_data error: {}'.format(e))
+		# log('pg_load_data error: {}'.format(e))
 		return pd.DataFrame()
 
 def fs_load_data(query: str, timeout_minutes=3) -> tuple[pd.DataFrame, Exception]:
 	try:
-		log('fs_load_data')
-		log('query')
-		log(query)
+		# log('fs_load_data')
+		# log('query')
+		# log(query)
 		# query = """WITH buyback_data AS (
 		# SELECT 
 		# 	date_trunc('day', block_timestamp) AS day,
@@ -120,20 +120,20 @@ def fs_load_data(query: str, timeout_minutes=3) -> tuple[pd.DataFrame, Exception
 		df = pd.DataFrame(df.dict()['records'])
 		if '__row_index' in df.columns:
 			df = df.drop(columns=['__row_index'])
-		return df, None
+		return df, ''
 	except Exception as e:
 		try:
-			log('e.args')
-			log(e.args)
+			# log('e.args')
+			# log(e.args)
 			s = re.split('errorData=', e.args[0])
-			log('s[1]')
-			log(s[1])
+			# log('s[1]')
+			# log(s[1])
 			j = ast.literal_eval(s[1])
-			log('j')
-			log(j)
+			# log('j')
+			# log(j)
 			return pd.DataFrame(), j['message']
 		except Exception as e2:
-			log(e2)
+			# log(e2)
 			return pd.DataFrame(), e.args[0]
 
 def pg_upload_data(df, table, if_exists="append"):
@@ -141,7 +141,7 @@ def pg_upload_data(df, table, if_exists="append"):
 	df.to_sql(table, engine, if_exists=if_exists, index=False)
 
 def upload_tweet_data(tweets, includes, tweets_includes):
-	log('upload_tweet_data')
+	# log('upload_tweet_data')
 	tweets_df = pd.DataFrame(tweets)
 	twitter_users_df = pd.DataFrame(includes)
 	tweets_includes_df = pd.DataFrame(tweets_includes)
@@ -208,7 +208,7 @@ def upload_tweet_data(tweets, includes, tweets_includes):
 	pg_upsert_data(twitter_users_df[['id','name','username']], twitter_users_table, engine, ['id'])
 
 def pg_upsert_flipside_dashboards(dashboards: pd.DataFrame):
-	log('pg_upsert_flipside_dashboards')
+	# log('pg_upsert_flipside_dashboards')
 	engine = create_engine(POSTGRES_ENGINE)
 
 	metadata = MetaData()
@@ -231,7 +231,7 @@ def pg_upsert_flipside_dashboards(dashboards: pd.DataFrame):
 	return True
 
 def pg_upsert_flipside_dashboards_queries(dashboard_queries: pd.DataFrame):
-	log('pg_upsert_flipside_dashboards_queries')
+	# log('pg_upsert_flipside_dashboards_queries')
 	engine = create_engine(POSTGRES_ENGINE)
 
 	metadata = MetaData()
@@ -259,7 +259,7 @@ def pc_upload_data(df, embedding_col, metadata_cols, batch_size=100, index_name=
 	"""
 	for i in range(0, len(df), batch_size):
 		batch = df.iloc[i:i+batch_size]
-		log(f"Processing batch {i//batch_size + 1} of {len(df)//batch_size + 1}")
+		# log(f"Processing batch {i//batch_size + 1} of {len(df)//batch_size + 1}")
 		
 		# Get embeddings for batch
 		texts = batch[embedding_col].tolist()
@@ -303,7 +303,7 @@ def pg_upsert_data(df, table, engine, index_elements=['id']):
 		df['exists'] = df['exists'].fillna(0)
 	else:
 		df['exists'] = 0
-	log(df.exists.mean())
+	# log(df.exists.mean())
 	
 	# Delete existing rows that need to be updated
 	if df.exists.sum() > 0:
@@ -329,7 +329,7 @@ def pg_upsert_data(df, table, engine, index_elements=['id']):
 	# """Upserts data into PostgreSQL table using ON CONFLICT (id) DO UPDATE."""
 	# with engine.begin() as conn:
 	# 	for _, row in df.iterrows():
-	# 		log(row.to_dict())
+	# 		# log(row.to_dict())
 	# 		stmt = insert(table).values(**row.to_dict())
 	# 		stmt = stmt.on_conflict_do_update(
 	# 			index_elements=index_elements,

@@ -31,8 +31,8 @@ def hello():
 @app.route('/ai')
 def ai():
     val = make_graph()
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     return jsonify({
         "greeting": "ai",
         "code": 200
@@ -74,12 +74,12 @@ def sharky_orderbooks_route():
 @app.route('/ask', methods=['GET'])
 def ask():
     try:
-        log('ask')
+        # log('ask')
 
         query = request.args.get('query', '')
-        log(f'query: {query}')
+        # log(f'query: {query}')
         conversation_id = request.args.get('conversation_id', '')
-        log(f'conversation_id: {conversation_id}')
+        # log(f'conversation_id: {conversation_id}')
 
         if not query:
             return jsonify({"error": "query required"}), 400
@@ -91,20 +91,20 @@ def ask():
         # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
         return response
     except Exception as e:
-        log(e)
+        # log(e)
         return jsonify({"error": str(e)}), 500
 
 @app.route('/ask_analyst', methods=['GET'])
 def ask_analyst_route():
     try:
-        log('ask_analyst')
+        # log('ask_analyst')
 
         query = request.args.get('query', '')
-        log(f'query: {query}')
+        # log(f'query: {query}')
         conversation_id = request.args.get('conversation_id', '')
-        log(f'conversation_id: {conversation_id}')
+        # log(f'conversation_id: {conversation_id}')
         user_id = request.args.get('user_id', '')
-        log(f'user_id: {user_id}')
+        # log(f'user_id: {user_id}')
 
         if not query:
             return jsonify({"error": "query required"}), 400
@@ -118,7 +118,7 @@ def ask_analyst_route():
         # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
         return response
     except Exception as e:
-        log(e)
+        # log(e)
         return jsonify({"error": str(e)}), 500
 
 
