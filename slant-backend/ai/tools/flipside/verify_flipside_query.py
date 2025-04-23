@@ -25,8 +25,8 @@ def verify_flipside_query(state: JobState) -> JobState:
     if len(state['flipside_sql_queries']) > 1:
         previous_sql_queries = '**Previous SQL Queries:**\n' + 'Here are the previous SQL queries that have been tried and did not produce successful results:\n'
         for a, b, c in zip(state['flipside_sql_queries'][:-1], state['flipside_sql_query_results'][:-1], state['flipside_sql_errors'][:-1]):
-            results = b.to_markdown() if len(b) <= 10 else pd.concat([b.head(5), b.tail(5)]).to_markdown()
-            results_text = '**Results** (first and last 5 rows):\n' + results if len(b) > 0 else '**Results**: No rows returned'
+            prev_results = b.to_markdown() if len(b) <= 10 else pd.concat([b.head(5), b.tail(5)]).to_markdown()
+            results_text = '**Results** (first and last 5 rows):\n' + prev_results if len(b) > 0 else '**Results**: No rows returned'
             error_text = '**Error**:\n' + c if c else ''
             previous_sql_queries += f'**Query:**\n{a}\n{results_text}\n{error_text}\n\n'
 
@@ -51,7 +51,7 @@ def verify_flipside_query(state: JobState) -> JobState:
 
         ---
 
-        {state_to_reference_materials(state)}
+        {state_to_reference_materials(state, use_summary=True)}
 
         ---
 
@@ -122,7 +122,7 @@ def verify_flipside_query(state: JobState) -> JobState:
         ---
 
         ## 📘 Reference Materials
-        {state_to_reference_materials(state)}
+        {state_to_reference_materials(state, use_summary=True)}
 
         ---
 
@@ -131,25 +131,25 @@ def verify_flipside_query(state: JobState) -> JobState:
         **Analysis Goal:**  
         {state['analysis_description']}
 
+        {previous_sql_queries}
+
         **SQL Query:**  
         ```sql
         {sql_query}
+        ```
 
-        Sample Results (first and last 20 rows):
+        **Results:** (first and last 20 rows)
+        ```
         {results}
-
-        {previous_sql_queries}
+        ```
 
         ✍️ Output
         Think carefully. If the query is already optimal and provides data that answers the analysis goal, return an empty string.
 
         Otherwise, return a single block of improved SQL that:
-
-        Produces correct and complete results
-
-        Is efficient and idiomatic
-
-        Aligns with the analysis objective
+        - Produces correct and complete results
+        - Is efficient and idiomatic
+        - Aligns with the analysis objective
 
         Return only the raw SQL. No explanation or extra text. """
 

@@ -246,7 +246,7 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             'response': state['response'],
             'analysis_description': state['analysis_description'],
             'web_search_results': state['web_search_results'],
-            'flipside_example_queries': state['flipside_example_queries'].query_id.tolist(),
+            'flipside_example_queries': state['flipside_example_queries'].query_id.tolist() if len(state['flipside_example_queries']) else [],
             'flipside_sql_query': state['flipside_sql_query'],
             'improved_flipside_sql_query': state['improved_flipside_sql_query'],
             'verified_flipside_sql_query': state['verified_flipside_sql_query'],

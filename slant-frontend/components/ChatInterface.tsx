@@ -169,6 +169,11 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 							console.log(highchartsDataParsed)
 							highchartsOptions['credits'] = {'enabled': false}
 							const { x, series, mode } = highchartsDataParsed;
+							console.log(`highcharts mode = ${mode}`)
+							console.log(`highcharts series`)
+							console.log(series)
+							console.log(`highcharts x`)
+							console.log(x)
 
 							// const scales = {};
 
@@ -180,7 +185,7 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 								// eslint-disable-next-line @typescript-eslint/no-explicit-any
 								highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
 									const matchedSeries = series.find(
-										(s: HighchartsDataSeries) => s.name === seriesConfig.column || s.name === seriesConfig.name
+										(s: HighchartsDataSeries) => s.name.toLowerCase() === seriesConfig.column.toLowerCase() || s.name.toLowerCase() === seriesConfig.name.toLowerCase()
 									);
 									if (matchedSeries) {
 										return {

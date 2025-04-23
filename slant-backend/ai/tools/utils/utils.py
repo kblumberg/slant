@@ -77,8 +77,11 @@ def get_other_info():
     """
 
 
-def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], preface: str = ''):
+def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], preface: str = '', use_summary = False):
     additional_context = '## 📚 Reference Materials\n\n'
+    if use_summary:
+        exclude_keys = exclude_keys + ['tweets', 'web_search_results', 'projects', 'additional_contexts']
+        additional_context = additional_context + '**RELATED INFORMATION**: \n' + 'Factor this into your analysis, along with the other information provided:\n\n' + state['context_summary']
     if preface:
         additional_context = additional_context + preface + '\n\n'
     if len(state['tweets']) > 0 and 'tweets' not in exclude_keys:

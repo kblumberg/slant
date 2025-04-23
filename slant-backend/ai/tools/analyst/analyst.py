@@ -35,17 +35,26 @@ from ai.tools.flipside.improve_flipside_query import improve_flipside_query
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 from ai.tools.utils.tool_selector import tool_selector
 from ai.tools.utils.tool_executor import tool_executor
-from ai.tools.analyst.context_saver import context_saver
+from ai.tools.analyst.context_summarizer import context_summarizer
 
-def execution_logic(state: JobState) -> str:
-    log(f'execution_logic:')
+def follow_up_questions_logic(state: JobState) -> str:
+    log(f'follow_up_questions_logic:')
     log('follow_up_questions')
     log(state['follow_up_questions'])
     log(f'tried_tools: {state["tried_tools"]}')
     if len(state["follow_up_questions"]) == 0:
-        return "CreateAnalysisDescription"
+        return "ContextSummarizer"
     elif state["tried_tools"] == 0:
         return "ToolSelector"
+    else:
+        return "ContextSummarizer"
+
+def context_summarizer_logic(state: JobState) -> str:
+    log(f'context_summarizer_logic:')
+    log('context_summary')
+    log(state['context_summary'])
+    if len(state["follow_up_questions"]) == 0:
+        return "CreateAnalysisDescription"
     else:
         return "RespondWithContext"
 
@@ -108,7 +117,11 @@ def post_flipside_execution_logic(state: JobState) -> str:
         return "VerifyFlipsideQuery"
 
 def verify_results_logic(state: JobState) -> str:
-    if not state["verified_flipside_sql_query"]:
+    log(f'verify_results_logic:')
+    log(f'state["flipside_sql_error"]: {state["flipside_sql_error"]}')
+    log(f'state["verified_flipside_sql_query"]: {state["verified_flipside_sql_query"]}')
+    log(f'state["flipside_sql_attempts"]: {state["flipside_sql_attempts"]}')
+    if state["verified_flipside_sql_query"].strip() == '':
         # the existing query and results are good
         return "FormatForHighcharts"
     elif state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS:
@@ -158,7 +171,7 @@ def make_graph():
     builder.add_node("VerifyFlipsideQuery", wrap_node(verify_flipside_query))
     builder.add_node("ImproveFlipsideQuery", wrap_node(improve_flipside_query))
     builder.add_node("FormatForHighcharts", wrap_node(format_for_highcharts))
-    builder.add_node("ContextSaver", wrap_node(context_saver))
+    builder.add_node("ContextSummarizer", wrap_node(context_summarizer))
     builder.add_node("JoinTools", wrap_node(lambda state: {}, name="JoinTools"))
 
     builder.add_edge(START, "ParseAnalyses")
@@ -178,7 +191,8 @@ def make_graph():
 
     builder.add_conditional_edges("JoinTools", join_tools_gate)
 
-    builder.add_conditional_edges("AskFollowUpQuestions", execution_logic)
+    builder.add_conditional_edges("AskFollowUpQuestions", follow_up_questions_logic)
+    builder.add_conditional_edges("ContextSummarizer", context_summarizer_logic)
     # builder.add_edge("AskFollowUpQuestions", "CreateAnalysisDescription")
     # builder.add_edge("CreateAnalysisDescription", "ToolSelector")
     builder.add_edge("ToolSelector", "ToolExecutor")
@@ -187,14 +201,14 @@ def make_graph():
     builder.add_edge("WriteFlipsideQueryOrInvestigateData", "WriteFlipsideQuery")
     builder.add_edge("WriteFlipsideQuery", "ImproveFlipsideQuery")
     builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
+    builder.add_edge("FixFlipsideQuery", "ExecuteFlipsideQuery")
     builder.add_conditional_edges("ExecuteFlipsideQuery", post_flipside_execution_logic)
     builder.add_conditional_edges("VerifyFlipsideQuery", verify_results_logic)
 
     # builder.add_edge("RagSearchTweets", "AskFollowUpQuestions")
     # builder.add_edge("AskFollowUpQuestions", "RespondWithContext")
     builder.add_edge("FormatForHighcharts", "RespondWithContext")
-    builder.add_edge("RespondWithContext", "ContextSaver")
-    builder.add_edge("ContextSaver", "PrintJobState")
+    builder.add_edge("RespondWithContext", "PrintJobState")
     # builder.add_edge("ParseAnalyses", "DecideFlipsideTables")
     # builder.add_conditional_edges("DecideFlipsideTablesFromQueries", execution_logic_2)
     # builder.add_edge("ParseAnalyses", "DecideFlipsideTablesFromQueries")

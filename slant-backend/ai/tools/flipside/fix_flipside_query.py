@@ -14,7 +14,7 @@ from ai.tools.utils.utils import state_to_reference_materials
 
 def fix_flipside_query(state: JobState) -> JobState:
 
-    reference_materials = state_to_reference_materials(state)
+    reference_materials = state_to_reference_materials(state, use_summary=True)
 
     prompt = f"""
         You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
@@ -42,7 +42,7 @@ def fix_flipside_query(state: JobState) -> JobState:
 
         Write a **correct, performant, and idiomatic** Snowflake SQL query that fixes the error from above.
 
-        Format the query so that the final output has at most 3 columns: timestamp, category, and value.
+        Format the query so that the final output has at most 3 columns: `timestamp`, `category`, and `<THE_VALUE_COLUMN>`.
 
 
         Return ONLY the raw SQL (no extra text):
