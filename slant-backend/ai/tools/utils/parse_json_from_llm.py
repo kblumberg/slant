@@ -3,13 +3,15 @@ import json
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
 
-def parse_json(json_string: str, llm: ChatOpenAI | ChatAnthropic) -> dict:
+def parse_json_from_llm(json_string: str, llm: ChatOpenAI | ChatAnthropic, to_json=True) -> dict:
     """
     Parse a JSON string into a dictionary.
     """
     response = re.sub(r'```json', '', json_string)
     response = re.sub(r'```sql', '', response)
-    response = re.sub(r'```', '', response)
+    response = re.sub(r'```', '', response).strip()
+    if not to_json:
+        return response
     try:
         return json.loads(response)
     except Exception as e:

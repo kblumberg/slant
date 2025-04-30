@@ -27,11 +27,12 @@ def write_flipside_query_or_investigate_data(state: JobState) -> JobState:
 
         ## Task
 
-        Determine whether you have enough information to write a valid SQL query to answer the following user question.
+        Determine whether you have enough information to write a valid SQL query to answer the following user question. Do you know what SQL query to write, what tables to use, and what filters to apply? Do you need to investigate the data further to confirm your understanding or confirm that the data is available?
 
         If you do not have enough information, describe what tables you would need to query and examine to get the information you need.
 
         ### ❓ Question:
+        Here is the user question that you are trying to answer:
         {state['analysis_description']}
 
         ---
@@ -40,15 +41,11 @@ def write_flipside_query_or_investigate_data(state: JobState) -> JobState:
 
         ---
 
-        ## Important Notes
-
-        ---
-
         ## ✍️ Output
 
-        If you have enough information, respond with an empty list. Only respond with an empty list; do not include any other text.
+        If you have enough information and are 90%+ confident that you know what SQL query to write, what tables to use, and what filters to apply, respond with a "YES". Do not include any other text.
 
-        If you do not have enough information, respond with a list of tables you would need to query and examine to get the information you need.
+        If you do not have enough information, respond with "NO". Do not include any other text.
 
     """
 

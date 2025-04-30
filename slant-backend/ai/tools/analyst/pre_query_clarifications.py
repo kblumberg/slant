@@ -1,8 +1,7 @@
-import re
 import time
-import json
 from utils.utils import log
 from classes.JobState import JobState
+from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def pre_query_clarifications(state: JobState) -> JobState:
 
@@ -52,8 +51,7 @@ def pre_query_clarifications(state: JobState) -> JobState:
     # log('pre_query_clarifications formatted_prompt')
     # log(formatted_prompt)
     response = state['reasoning_llm'].invoke(formatted_prompt).content
-    response = re.sub(r'```json', '', response)
-    response = re.sub(r'```', '', response)
+    response = parse_json_from_llm(response, state['llm'], to_json=False)
     # log('pre_query_clarifications response')
     # log(response)
     time_taken = round(time.time() - start_time, 1)

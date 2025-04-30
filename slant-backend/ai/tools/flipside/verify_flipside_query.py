@@ -14,6 +14,7 @@ from ai.tools.utils.utils import print_tool_starting, get_sql_notes, state_to_re
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 
 def verify_flipside_query(state: JobState) -> JobState:
+    return {'verified_flipside_sql_query': '', 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
     if state["flipside_sql_error"] or state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS:
         return {}
 
@@ -116,13 +117,12 @@ def verify_flipside_query(state: JobState) -> JobState:
         Carefully review the SQL query and evaluate:
 
         1. **Correctness** – Does the query correctly fulfill the intended analysis?
-        2. **Performance** – Is the query written efficiently using good Snowflake practices?
-        3. **Idiomatic Use** – Does the query follow common patterns used in Flipside blockchain analytics?
+        2. **Results** – Do the results answer the analysis goal?
 
         ---
 
         ## 📘 Reference Materials
-        {state_to_reference_materials(state, use_summary=True)}
+        {state_to_reference_materials(state, exclude_keys=['tweets','web_search_results','projects','additional_contexts'])}
 
         ---
 
@@ -144,7 +144,7 @@ def verify_flipside_query(state: JobState) -> JobState:
         ```
 
         ✍️ Output
-        Think carefully. If the query is already optimal and provides data that answers the analysis goal, return an empty string.
+        Think carefully. If the results provide data that answers the analysis goal, return an empty string.
 
         Otherwise, return a single block of improved SQL that:
         - Produces correct and complete results
@@ -152,6 +152,8 @@ def verify_flipside_query(state: JobState) -> JobState:
         - Aligns with the analysis objective
 
         Return only the raw SQL. No explanation or extra text. """
+
+        return {'verified_flipside_sql_query': '', 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
 
     sql_query = state['reasoning_llm'].invoke(prompt).content
 

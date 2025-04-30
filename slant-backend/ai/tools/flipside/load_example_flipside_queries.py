@@ -15,14 +15,16 @@ def load_example_flipside_queries(state: JobState) -> JobState:
     # log('\n')
     # log('load_example_flipside_queries starting...')
     # log(state['analyses'])
-    queries = pd.DataFrame()
-    for analysis in state['analyses']:
-        # log('analysis')
-        # log(analysis)
-        cur = rag_search_queries(analysis.to_string(), [analysis.project] + analysis.tokens, top_k=40, n_queries=10)
-        # log('cur')
-        # log(cur)
-        queries = pd.concat([queries, cur])
-    queries = queries.drop_duplicates(subset=['query_id'])
+    tokens = list(set([token for x in state['analyses'] for token in x.tokens]))
+    projects = list(set([ x.project for x in state['analyses']]))
+    queries = rag_search_queries(state['analysis_description'], tokens + projects, top_k=40, n_queries=12)
+    # for analysis in state['analyses']:
+    #     # log('analysis')
+    #     # log(analysis)
+    #     cur = rag_search_queries(analysis.to_string(), [analysis.project] + analysis.tokens, top_k=40, n_queries=12)
+    #     # log('cur')
+    #     # log(cur)
+    #     queries = pd.concat([queries, cur])
+    # queries = queries.drop_duplicates(subset=['query_id'])
 
     return {'flipside_example_queries': queries, 'completed_tools': ['LoadExampleFlipsideQueries']}

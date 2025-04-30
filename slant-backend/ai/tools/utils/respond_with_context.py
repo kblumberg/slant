@@ -28,7 +28,7 @@ def respond_with_context(state: JobState):
         time_taken = round(time.time() - start_time, 1)
         # log(f'respond_with_context finished in {time_taken} seconds')
         return {'response': response, 'completed_tools': ["RespondWithContext"]}
-    elif len(state['write_flipside_query_or_investigate_data']) > 0:
+    elif len(state['flipside_sql_query_result']) > 0:
 
         flipside_sql_query_result = '## **Data Analyst Result**: \n Here is some data that may be relevant to the question. Prioritize this data over other information to answer the question. However, DO NOT give a list of data points in your response, just focus on key insights and overviews. \n```' + state['flipside_sql_query_result'].to_markdown() + '```' if len(state['flipside_sql_query_result']) else ''
 
@@ -45,6 +45,18 @@ def respond_with_context(state: JobState):
                 Based on this information, provide a response to the user query in 1-3 key points and a summary. There will be a chart in the response, so you do not have to be verbose, just a summary and 1-3 things that stand out.
 
                 Note that the current date and time is {datetime.now().strftime("%Y-%m-%d %H:%M")}. If there are dates mentioned in the question or context, keep this in mind.
+                
+                =============
+                ## Methodology Section
+                =============
+                - Also include a **methodology** section that explains how you queried the data and what methods you used.
+                - Explicity mention any specific addresses, mints, or program ids that you used (particularly in the WHERE clause) or any assumptions you made.
+                - Be detailed but concise.
+
+                **SQL Query Used**:
+                ```sql
+                {state['flipside_sql_query']}
+                ```
 
                 Provide your response in Markdown format. Use:
                     - Headers for sections (### Section Name)
@@ -62,13 +74,15 @@ def respond_with_context(state: JobState):
 
                 Tell the user that you have answered the question (with a chart that will be provided above) and ask if they have any follow up questions.
             """),
-        ] 
+        ]
 
         # Call LLM to get the decision
         answer = state['reasoning_llm'].invoke(messages).content
         time_taken = round(time.time() - start_time, 1)
         # log(f'answer_with_context finished in {time_taken} seconds')
         return {'response': answer, 'completed_tools': ["RespondWithContext"]}
+    elif state['flipside_sql_error']:
+        return {'response': 'Sorry, I had an error with the query. Please try again, adding as much context and details as possible.', 'completed_tools': ["RespondWithContext"]}
     elif len(state['write_flipside_query_or_investigate_data']) > 0:
         return {'response': state['write_flipside_query_or_investigate_data'], 'completed_tools': ["RespondWithContext"]}
     elif len(state['analysis_description']) > 0:

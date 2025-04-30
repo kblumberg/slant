@@ -1,10 +1,8 @@
-import re
 import time
-import json
 from utils.utils import log
 from classes.JobState import JobState
-from ai.tools.utils.utils import parse_messages
 from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def context_summarizer(state: JobState) -> JobState:
     if state['context_summary']:
@@ -51,6 +49,8 @@ def context_summarizer(state: JobState) -> JobState:
     - "To get XXXX transactions, use TABLE_NAME on flipside with the following filters: FILTER_1, FILTER_2, FILTER_3."
 
     INCLUDE ONLY information that is relevant to the analysis. Exclude any other information.
+
+    Make sure to record any wallet addresses, mints, or program ids EXACTLY as they are. Do not change or miss any characters.
     """
 
 
@@ -59,8 +59,7 @@ def context_summarizer(state: JobState) -> JobState:
         reference_materials=state_to_reference_materials(state)
     )
     response = state['reasoning_llm'].invoke(formatted_prompt).content
-    summary = re.sub(r'```json', '', response)
-    summary = re.sub(r'```', '', summary)
+    summary = parse_json_from_llm(response, state['llm'], to_json=False)
     log('context_summarizer')
     log(summary)
     return {'context_summary': summary, 'completed_tools': ["ContextSummarizer"]}

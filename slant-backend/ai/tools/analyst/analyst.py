@@ -1,9 +1,12 @@
+import os
+import uuid
 import time
 import json
 import psycopg
+import markdown
 import pandas as pd
-import os
 from utils.utils import log
+from tavily import TavilyClient
 from classes.JobState import JobState
 from langchain_openai import ChatOpenAI
 from constants.keys import OPENAI_API_KEY, TAVILY_API_KEY, POSTGRES_ENGINE
@@ -18,9 +21,6 @@ from ai.tools.twitter.rag_search_tweets import rag_search_tweets
 from ai.tools.web.web_search import web_search
 from ai.tools.analyst.ask_follow_up_questions import ask_follow_up_questions
 from ai.tools.utils.respond_with_context import respond_with_context
-import uuid
-from tavily import TavilyClient
-import markdown
 from ai.tools.analyst.create_analysis_description import create_analysis_description
 from ai.tools.analyst.pre_query_clarifications import pre_query_clarifications
 from ai.tools.flipside.load_example_flipside_queries import load_example_flipside_queries
@@ -36,6 +36,7 @@ from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 from ai.tools.utils.tool_selector import tool_selector
 from ai.tools.utils.tool_executor import tool_executor
 from ai.tools.analyst.context_summarizer import context_summarizer
+from ai.tools.analyst.extract_transactions import extract_transactions
 
 def follow_up_questions_logic(state: JobState) -> str:
     log(f'follow_up_questions_logic:')
@@ -54,7 +55,7 @@ def context_summarizer_logic(state: JobState) -> str:
     log('context_summary')
     log(state['context_summary'])
     if len(state["follow_up_questions"]) == 0:
-        return "CreateAnalysisDescription"
+        return "WriteFlipsideQueryOrInvestigateData"
     else:
         return "RespondWithContext"
 
@@ -64,16 +65,42 @@ def execution_logic_2(state: JobState) -> str:
     else:
         return "HumanInput"
 
+
 def get_upcoming_tool(state: JobState):
     upcoming_tools = ['ParseAnalyses']
     completed_tools = sorted(list(set(state['completed_tools'])))
     states = [
         'ParseAnalyses',
-        'DecideFlipsideTables',
+        'WebSearch',
+        'RagSearchTweets',
+        'RagSearchProjects',
+        'ExtractTransactions',
+        'LoadExampleFlipsideQueries',
+        'WriteFlipsideQueryOrInvestigateData',
+        'AskFollowUpQuestions',
+        'ToolSelector',
+        'ToolExecutor',
+        'PrintJobState',
+        'CreateAnalysisDescription',
         'RespondWithContext',
+        'WriteFlipsideQuery',
+        'FixFlipsideQuery',
+        'ExecuteFlipsideQuery',
+        'VerifyFlipsideQuery',
+        'ImproveFlipsideQuery',
+        'FormatForHighcharts',
+        'ContextSummarizer',
+        
     ]
     d = {
+        'AskFollowUpQuestions': 'AskFollowUpQuestions',
         'ParseAnalyses': 'Analyzing query',
+        'WebSearch': 'Searching the web',
+        'RagSearchTweets': 'Searching twitter',
+        'RagSearchProjects': 'Loading project data',
+        'LoadExampleFlipsideQueries': 'Analyzing SQL query examples',
+        'WriteFlipsideQueryOrInvestigateData': 'Analyzing additional needs',
+        'WriteFlipsideQuery': 'Writing SQL query',
         'DecideFlipsideTables': 'Deciding which flipside tables to use',
         'RespondWithContext': 'Summarizing data',
     }
@@ -84,10 +111,10 @@ def get_upcoming_tool(state: JobState):
     # print(f'remaining_tools: {remaining_tools}')
     for s in states:
         if s in remaining_tools:
-            return d[s]
+            return d[s] if s in d.keys() else s
     return 'Unknown tool'
 
-def join_tools_gate(state: JobState) -> str:
+def join_tools_gate_3(state: JobState) -> str:
     # Check if all upcoming tools have been completed
     remaining_tools = list(set(state['upcoming_tools']) - set(state['completed_tools']))
     
@@ -102,7 +129,13 @@ def join_tools_gate(state: JobState) -> str:
     
     # Otherwise, continue waiting
     # log('Still waiting for tools to complete.')
-    return "JoinTools"
+    return "JoinTools3"
+
+def join_tools_gate_1(state: JobState) -> str:
+    remaining_tools = set(['ParseAnalyses','CreateAnalysisDescription']) - set(state['completed_tools'])
+    if len(remaining_tools) == 0:
+        return "JoinTools2"
+    return "JoinTools1"
 
 def post_flipside_execution_logic(state: JobState) -> str:
     if state["flipside_sql_attempts"] < MAX_FLIPSIDE_SQL_ATTEMPTS and state["flipside_sql_error"] and not 'QUERY_RUN_TIMEOUT_ERROR' in str(state["flipside_sql_error"]):
@@ -121,7 +154,7 @@ def verify_results_logic(state: JobState) -> str:
     log(f'state["flipside_sql_error"]: {state["flipside_sql_error"]}')
     log(f'state["verified_flipside_sql_query"]: {state["verified_flipside_sql_query"]}')
     log(f'state["flipside_sql_attempts"]: {state["flipside_sql_attempts"]}')
-    if state["verified_flipside_sql_query"].strip() == '':
+    if state["verified_flipside_sql_query"].strip() == '' and len(state["flipside_sql_query_result"]) > 0:
         # the existing query and results are good
         return "FormatForHighcharts"
     elif state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS:
@@ -164,32 +197,55 @@ def make_graph():
     builder.add_node("RespondWithContext", wrap_node(respond_with_context))
     builder.add_node("PreQueryClarifications", wrap_node(pre_query_clarifications))
     builder.add_node("RagSearchProjects", wrap_node(rag_search_projects))
-    builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(write_flipside_query_or_investigate_data))
+    # builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(write_flipside_query_or_investigate_data))
     builder.add_node("WriteFlipsideQuery", wrap_node(write_flipside_query))
     builder.add_node("FixFlipsideQuery", wrap_node(fix_flipside_query))
     builder.add_node("ExecuteFlipsideQuery", wrap_node(execute_flipside_query))
     builder.add_node("VerifyFlipsideQuery", wrap_node(verify_flipside_query))
+    builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(lambda state: {}))
+    # builder.add_node("VerifyFlipsideQuery", wrap_node(lambda state: {}))
     builder.add_node("ImproveFlipsideQuery", wrap_node(improve_flipside_query))
     builder.add_node("FormatForHighcharts", wrap_node(format_for_highcharts))
     builder.add_node("ContextSummarizer", wrap_node(context_summarizer))
-    builder.add_node("JoinTools", wrap_node(lambda state: {}, name="JoinTools"))
+    builder.add_node("ExtractTransactions", wrap_node(extract_transactions))
+    builder.add_node("JoinTools3", wrap_node(lambda state: {}, name="JoinTools3"))
+    builder.add_node("JoinTools1", wrap_node(lambda state: {}, name="JoinTools1"))
+    builder.add_node("JoinTools2", wrap_node(lambda state: {}, name="JoinTools2"))
 
     builder.add_edge(START, "ParseAnalyses")
-    builder.add_edge("ParseAnalyses", "RagSearchTweets")
-    builder.add_edge("ParseAnalyses", "RagSearchProjects")
-    builder.add_edge("ParseAnalyses", "LoadExampleFlipsideQueries")
-    builder.add_edge("ParseAnalyses", "WebSearch")
+    builder.add_edge(START, "CreateAnalysisDescription")
+    builder.add_edge("JoinTools1", "JoinTools2")
+
+    tool_nodes = [
+        "ParseAnalyses",
+        "CreateAnalysisDescription",
+    ]
+    for node in tool_nodes:
+        builder.add_edge(node, "JoinTools1")
 
     tool_nodes = [
         "RagSearchTweets",
         "RagSearchProjects",
         "LoadExampleFlipsideQueries",
         "WebSearch",
+        "ExtractTransactions",
     ]
     for node in tool_nodes:
-        builder.add_edge(node, "JoinTools")
+        builder.add_edge("JoinTools2", node)
 
-    builder.add_conditional_edges("JoinTools", join_tools_gate)
+    tool_nodes = [
+        "RagSearchTweets",
+        "RagSearchProjects",
+        "LoadExampleFlipsideQueries",
+        "WebSearch",
+        "ExtractTransactions",
+        "CreateAnalysisDescription",
+    ]
+    for node in tool_nodes:
+        builder.add_edge(node, "JoinTools3")
+
+    builder.add_conditional_edges("JoinTools1", join_tools_gate_1)
+    builder.add_conditional_edges("JoinTools3", join_tools_gate_3)
 
     builder.add_conditional_edges("AskFollowUpQuestions", follow_up_questions_logic)
     builder.add_conditional_edges("ContextSummarizer", context_summarizer_logic)
@@ -197,10 +253,11 @@ def make_graph():
     # builder.add_edge("CreateAnalysisDescription", "ToolSelector")
     builder.add_edge("ToolSelector", "ToolExecutor")
     builder.add_edge("ToolExecutor", "AskFollowUpQuestions")
-    builder.add_edge("CreateAnalysisDescription", "WriteFlipsideQueryOrInvestigateData")
+    # builder.add_edge("AskFollowUpQuestions", "WriteFlipsideQueryOrInvestigateData")
     builder.add_edge("WriteFlipsideQueryOrInvestigateData", "WriteFlipsideQuery")
-    builder.add_edge("WriteFlipsideQuery", "ImproveFlipsideQuery")
-    builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
+    # builder.add_edge("WriteFlipsideQuery", "ImproveFlipsideQuery")
+    builder.add_edge("WriteFlipsideQuery", "ExecuteFlipsideQuery")
+    # builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
     builder.add_edge("FixFlipsideQuery", "ExecuteFlipsideQuery")
     builder.add_conditional_edges("ExecuteFlipsideQuery", post_flipside_execution_logic)
     builder.add_conditional_edges("VerifyFlipsideQuery", verify_results_logic)
@@ -221,6 +278,10 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     # query = 'how many sharky nft loans have been taken in the last 5 days?'
     log(f'ask_analyst: {user_prompt}')
     start_time = time.time()
+    message = {
+        "status": "done",
+    }
+    val = f"data: {json.dumps(message)}\n\n"
 
     sync_connection = psycopg.connect(POSTGRES_ENGINE)
 
@@ -267,10 +328,14 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , schema=schema
         , pre_query_clarifications=''
         , follow_up_questions=[]
-        , highcharts_config={}
+        , highcharts_configs=[]
         , conversation_id=conversation_id
         , analysis_description=''
         , messages=memory.messages
+        , write_flipside_query_or_investigate_data=''
+        , investigation_flipside_sql_queries=[]
+        , investigation_flipside_sql_errors=[]
+        , investigation_flipside_sql_query_results=[]
         , flipside_sql_queries=[]
         , flipside_sql_errors=[]
         , flipside_sql_query_results=[]
@@ -281,6 +346,7 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , flipside_sql_attempts=0
         , tried_tools=0
         , run_tools=[]
+        , transactions=[]
         , analyses=[]
         , projects=[]
         , tweets=[]
@@ -316,13 +382,17 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
             response['response'] = message
         upcoming_tool = get_upcoming_tool(chunk)
 
-        highcharts_config = chunk.get('highcharts_config')
-        if type(highcharts_config) == str:
-            highcharts_config = json.loads(highcharts_config)
-        if highcharts_config:
-            response['highcharts_config'] = highcharts_config
+        highcharts_configs = chunk.get('highcharts_configs')
+        if type(highcharts_configs) == str:
+            highcharts_configs = json.loads(highcharts_configs)
+        if highcharts_configs:
+            response['highcharts_configs'] = highcharts_configs
         flipside_sql_query_result = chunk.get('flipside_sql_query_result')
+        response['highcharts_datas'] = []
         if len(flipside_sql_query_result):
+            log('flipside_sql_query_result.columns')
+            log(flipside_sql_query_result.columns)
+            log(f'len(highcharts_configs): {len(highcharts_configs)}')
             x_col = 'timestamp' if 'timestamp' in flipside_sql_query_result.columns else 'category' if 'category' in flipside_sql_query_result.columns else ''
             # log(f'x_col: {x_col}')
             # flipside_sql_query_result = flipside_sql_query_result.rename(columns={'timestamp': 'x'})
@@ -334,32 +404,117 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
                 { 'name': col, 'data': flipside_sql_query_result[[col]].dropna().values.tolist() }
                 for col in flipside_sql_query_result.columns if col != x_col
             ]
-            response['highcharts_data'] = {
+            highcharts_data = {
                 'x': sorted(flipside_sql_query_result[x_col].unique().tolist()) if x_col else list(range(len(flipside_sql_query_result))),
                 'series': chart_data,
                 'mode': x_col
             }
-            if 'timestamp' in flipside_sql_query_result.columns and 'category' in flipside_sql_query_result.columns:
-                # log('timestamp and category in flipside_sql_query_result')
-                # log(highcharts_config)
-                # log(highcharts_config.keys())
-                if 'series' in highcharts_config.keys():
-                    categories = flipside_sql_query_result['category'].unique().tolist()
-                    columns = sorted(list(set([ x['column'] for x in highcharts_config['series'] ])))
-                    print(f'categories: {categories}.')
-                    print(f'columns: {columns}.')
-                    chart_data = []
-                    for cat in categories:
-                        for col in columns:
-                            cur = flipside_sql_query_result[flipside_sql_query_result['category'] == cat][[x_col, col]].dropna().values.tolist()
-                            if len(cur):
-                                chart_data.append({ 'name': cat, 'data': cur })
-                    # log('chart_data')
-                    # log(chart_data)
-                    response['highcharts_data']['series'] = chart_data
-            # log('highcharts_data')
-            # log(response['highcharts_data'])
 
+            # if ('timestamp' in flipside_sql_query_result.columns and 'category' in flipside_sql_query_result.columns) or len(highcharts_configs) > 1:
+                # log('timestamp and category in flipside_sql_query_result')
+                # log(highcharts_config.keys())
+            highcharts_datas = []
+            new_highcharts_configs = []
+            for highcharts_config in highcharts_configs:
+                log('highcharts_config')
+                log(highcharts_config)
+                chart_data = []
+                if 'series' in highcharts_config.keys():
+                    for series in highcharts_config['series']:
+                        log('series')
+                        log(series)
+                        cur = flipside_sql_query_result.copy()
+                        cur['category_clean'] = cur['category'].apply(lambda x: x.lower().strip())
+                        categories = cur['category'].unique().tolist() if 'category' in cur.columns else []
+                        log(f'categories: {categories}.')
+                        column = series['column']
+                        log(f'column: {column}.')
+
+                        filter_column = series['filter_column'] if 'filter_column' in series.keys() else ''
+                        log(f'filter_column: {filter_column}.')
+                        filter_value = series['filter_value'] if 'filter_value' in series.keys() else ''
+                        log(f'filter_value: {filter_value}.')
+
+                        is_timestamp = 1 if 'timestamp' in flipside_sql_query_result.columns else 0
+                        is_filter_column = 1 if filter_column else 0
+                        is_category = 1 if len(categories) else 0
+                        chart_type = 'x_time_y_value'
+                        if is_timestamp:
+                            if is_category and is_filter_column:
+                                chart_type = 'x_timestamp_y_value_z_category_filter'
+                            elif is_category:
+                                chart_type = 'x_timestamp_y_value_z_category'
+                        else:
+                            if is_filter_column:
+                                chart_type = 'x_category_y_value_z_filter'
+                            else:
+                                chart_type = 'x_category_y_value'
+                        log(f'chart_type: {chart_type}.')
+
+                        x_col = 'timestamp' if is_timestamp else 'category'
+                        log(f'x_col: {x_col}.')
+
+                        if chart_type == 'x_time_y_value':
+                            chart_data = cur[[x_col, column]].dropna().values.tolist()
+                        elif chart_type == 'x_timestamp_y_value_z_category_filter':
+                            # timestamp and no filter
+                            cur = cur[cur[filter_column] == filter_value]
+                            # for cat in categories:
+                            cur_subset = cur[cur['category_clean'] == series['name'].lower().strip()][[x_col, column]].dropna().values.tolist()
+                            if len(cur_subset):
+                                # chart_data.append({ 'name': series['name'], 'data': cur_subset })
+                                chart_data = cur_subset
+                        elif chart_type == 'x_timestamp_y_value_z_category':
+                            # timestamp and no filter
+                            # for cat in categories:
+                            cur_subset = cur[cur['category_clean'] == series['name'].lower().strip()][[x_col, column]].dropna().values.tolist()
+                            if len(cur_subset):
+                                # chart_data.append({ 'name': series['name'], 'data': cur_subset })
+                                chart_data = cur_subset
+                        elif chart_type == 'x_category_y_value_z_filter':
+                            # timestamp and no filter
+                            cur = cur[cur[filter_column] == filter_value]
+                            chart_data = cur[[x_col, column]].dropna().values.tolist()
+                        log('chart_data')
+                        log(chart_data)
+                        series['data'] = chart_data
+                        # if filter_column and filter_value and filter_column in cur.columns and not filter_value in categories:
+                        #     # if there are categories and a filter
+                        #     cur = cur[cur[filter_column] == filter_value]
+                        #     for cat in categories:
+                        #         cur_subset = cur[cur['category'] == cat][[x_col, column]].dropna().values.tolist()
+                        #         log(f'cur_subset for {cat}')
+                        #         log(cur_subset)
+                        #         if 'timestamp' in flipside_sql_query_result.columns:
+                        #             cur_subset = cur[cur['category'] == cat][[x_col, column]].dropna().values.tolist()
+                        #             if len(cur_subset):
+                        #                 chart_data.append({ 'name': series['name'], 'data': cur_subset })
+                        #         else:
+                        #             assert len(cur_subset) == 1
+                        #             chart_data = cur_data + cur_subset
+                        # else:
+                        #     # if there is just categories but no filter
+                        #     for cat in categories:
+                        #         cur_subset = cur[cur['category'] == cat][[x_col, column]].dropna().values.tolist()
+                        #         if len(cur_subset):
+                        #             chart_data.append({ 'name': cat, 'data': cur_subset })
+                        # log('chart_data')
+                        # log(chart_data)
+                #     highcharts_data = {
+                #         'x': sorted(flipside_sql_query_result[x_col].unique().tolist()) if x_col else list(range(len(flipside_sql_query_result))),
+                #         'series': chart_data,
+                #         'mode': x_col
+                #     }
+                # highcharts_datas.append({
+                #     'x': sorted(cur[x_col].unique().tolist()) if x_col else list(range(len(cur))),
+                #     'series': chart_data,
+                #     'mode': x_col
+                # })
+            # else:
+            #     response['highcharts_datas'] = [highcharts_data]
+            # log('highcharts_datas')
+            # log(response['highcharts_datas'])
+            # response['highcharts_datas'] = highcharts_datas
         if not upcoming_tool in ['Unknown tool', 'Analyzing query']:
             message = {
                 "status": upcoming_tool,
@@ -388,28 +543,30 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
 
     data = {
     }
-    if 'highcharts_config' in response and response['highcharts_config']:
-        data['highcharts'] = response['highcharts_config']
-    if 'highcharts_data' in response and response['highcharts_data']:
-        data['highcharts_data'] = response['highcharts_data']
+    if 'highcharts_configs' in response and response['highcharts_configs']:
+        data['highcharts'] = response['highcharts_configs']
+    if 'highcharts_datas' in response and response['highcharts_datas']:
+        data['highcharts_datas'] = response['highcharts_datas']
+    log('highcharts data')
+    log(data)
     message = {
         "response": html_output,
         "data": data
     }
-    # log('Finished!')
-    # log(message)
+    log('message')
+    log(message)
     print(f'Time taken: {int(end_time - start_time)} seconds')
     val = f"data: {json.dumps(message)}\n\n"
-    # log('val')
-    # log(val)
+    log('yield val 475')
+    log(val)
     yield val
     message = {
         "status": "done",
     }
     val = f"data: {json.dumps(message)}\n\n"
-    # log('val')
-    # log(val)
-    return val
+    log('return val 482')
+    log(val)
+    yield val
 
     # return val
     # return response

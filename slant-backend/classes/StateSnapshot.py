@@ -2,12 +2,12 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 class StateSnapshot:
-    def __init__(self, id: str, user_message_id: str, analyses: List[Analysis], tools: List[str], highcharts_config: dict, flipside_example_queries: pd.DataFrame):
+    def __init__(self, id: str, user_message_id: str, analyses: List[Analysis], tools: List[str], highcharts_configs: [dict], flipside_example_queries: pd.DataFrame):
         self.id = id
         self.user_message_id = user_message_id
         self.analyses = analyses
         self.tools = tools
-        self.highcharts_config = highcharts_config
+        self.highcharts_configs = highcharts_configs
         self.flipside_example_queries = flipside_example_queries
 
     def to_dict(self) -> Dict[str, Any]:
@@ -16,7 +16,7 @@ class StateSnapshot:
             'user_message_id': self.user_message_id,
             'analyses': self.analyses,
             'tools': self.tools,
-            'highcharts_config': self.highcharts_config,
+            'highcharts_configs': self.highcharts_configs,
             'flipside_example_queries': self.flipside_example_queries
         }
 
@@ -27,7 +27,7 @@ class StateSnapshot:
             user_message_id=state_snapshot['user_message_id'],
             analyses=state_snapshot['analyses'],
             tools=state_snapshot['tools'],
-            highcharts_config=state_snapshot['highcharts_config'],
+            highcharts_configs=state_snapshot['highcharts_configs'],
             flipside_example_queries=state_snapshot['flipside_example_queries']
         )
 
@@ -37,7 +37,7 @@ class StateSnapshot:
         User Message ID: {self.user_message_id}
         Analyses: {self.analyses}
         Tools: {self.tools}
-        Highcharts Config: {self.highcharts_config}
+        Highcharts Configs: {self.highcharts_configs}
         Flipside Example Queries: {self.flipside_example_queries}
         """
 

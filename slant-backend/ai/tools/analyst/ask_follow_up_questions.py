@@ -1,9 +1,8 @@
-import re
 import time
-import json
 from utils.utils import log
 from classes.JobState import JobState
 from ai.tools.utils.utils import parse_messages, state_to_reference_materials
+from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def ask_follow_up_questions(state: JobState) -> JobState:
 
@@ -34,6 +33,8 @@ def ask_follow_up_questions(state: JobState) -> JobState:
 
             You have already asked the user a first round of clarifying questions. ONLY ask further questions **if there are still major ambiguities** in their latest reply.
 
+            If the user has not already provided an example transaction id, ask for one if you are still unsure about how to identify the correct transaction types.
+
             Do NOT ask questions that are repetitive or overly detailed. If the user’s response resolved their intent clearly, then return an empty list like:
             ```json
             []
@@ -49,12 +50,11 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         ### General Guidelines
         You should consider:
         - What specific data needs to be extracted or filtered (e.g., by `program_id`, `tx_from`, `tx_to`, `block_timestamp`, etc.)
+        - If you are unsure how to identify the right transaction types, you may ask the user for an example transaction id to give you a guide on how to identify the correct transaction types.
         - What calculations or groupings are required (e.g., daily vs cumulative totals, wallet segmentation)
         - Whether additional definitions or thresholds are needed (e.g., define a "whale" wallet or "active" user)
         - Any ambiguity in the user's request that would require clarification
         - Avoid asking questions that are already answered in the **user’s prompt** or previous messages
-        - Do not ask how the analysis will be performed — focus only on what needs to be clarified
-        - Do not ask technical questions about which tables or columns to use
         - The user **does not** see the additional context. If you reference something from it, you must **quote it fully and clearly**
         - Do not mention tables or columns specifically — only concepts
 
@@ -64,6 +64,13 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         - If the context includes something like a launch date or token metadata, use it directly and precisely. E.g., "I see the token launched on 2024-03-12. Should I start the chart from that date?"
         - If you are not 99% sure about the correct program id, mint, address, etc., confirm with the user.
 
+        ## 💡 Do not ask about
+        Do NOT ask about:
+        - How specifically to parse the data or transaction; can only ask high level concepts or ask them to provide example transactions
+        - Technical questions about **which tables or columns to use** - keep it high level; Do NOT mention any specific tables names or columns in your questions
+        - Why they are asking about something
+
+
         **If possible, make a check instead of asking a question**
         Examples:
         - Instead of asking "Which $XXX token are you referring to?", say "I see there is a $XXX token with address YYY. Is that the one you want?".
@@ -71,12 +78,13 @@ def ask_follow_up_questions(state: JobState) -> JobState:
 
         ---
 
-        ## ⚠️ Assumptions
+        ## ⚠️ Assumptions to Make
 
-        Unless otherwise stated:
+        Unless otherwise stated, assume the following and do NOT ask about them unless the user explicitly mentions them ON THEIR OWN:
         - The user is asking about on-chain activity on **Solana mainnet**
         - The analysis runs up to the present day (no end date)
-        - Time zone is **UTC**
+        - Desired time zone is **UTC**
+        - The user is only interested in "successful" transactions
         - All standard decoded on-chain data is queryable
 
         ---
@@ -136,7 +144,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         User prompt: Show me the daily rewards distributed by BaseBet
 
         Response:
-        ["What timeframe do you want me to analyze?", "Do you want the total amount or the number of wallets?"]
+        ["What timeframe do you want me to analyze?", "Do you want the total amount or the number of wallets?", "Can you provide an example transaction id of a reward?"]
 
         =============
         = Example 4 =
@@ -145,6 +153,11 @@ def ask_follow_up_questions(state: JobState) -> JobState:
 
         Response:
         []
+
+        =============
+        # Critical Reminders
+        =============
+        - Make sure to record any wallet addresses, mints, or program ids EXACTLY as they are. Do not change or miss any characters.
 
     """
     formatted_prompt = prompt.format(
@@ -155,9 +168,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     # log('formatted_prompt')
     # log(formatted_prompt)
     response = state['reasoning_llm'].invoke(formatted_prompt).content
-    follow_up_questions = re.sub(r'```json', '', response)
-    follow_up_questions = re.sub(r'```', '', follow_up_questions)
-    follow_up_questions = json.loads(follow_up_questions)
+    follow_up_questions = parse_json_from_llm(response, state['llm'])
     log('ask_follow_up_questions')
     log(follow_up_questions)
     time_taken = round(time.time() - start_time, 1)

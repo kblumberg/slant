@@ -25,8 +25,8 @@ def update_flipside_data():
 
         hours_ago = math.ceil((int(datetime.now().timestamp()) - int(mx.timestamp()) ) / 3600)
 
-        n_fd_pages = math.ceil(hours_ago / 10) + 2
-        n_pages = math.ceil(hours_ago / 6) + 2
+        n_fd_pages = min(25, math.ceil(hours_ago / 10) + 2)
+        n_pages = min(25, math.ceil(hours_ago / 6) + 2)
 
         print(f'Most recent query was {hours_ago} hours ago, scraping {n_pages} pages')
 

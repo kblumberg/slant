@@ -4085,7 +4085,7 @@ with t0 as (
     , e.signers[0]::string as address
     from solana.core.fact_events e
     , lateral flatten(
-        input => parse_json(e.inner_instruction:instructions)
+        input => parse_json_from_llm(e.inner_instruction:instructions)
     ) c
     where block_timestamp >= '2023-08-03'
         and block_timestamp <= '2023-08-06'
@@ -9445,9 +9445,9 @@ lock_txs as (
     --, signers[0] as taker_address
     , fact_events.instruction:accounts[4]::string as order_address1
     , regexp_replace(f_logs.value, '^Program log: Fees ')::string as fees_string
-    , parse_json(fees_string) :premium ::number / pow(10, 9) as premium
-    , parse_json(fees_string) :premium_net_fees ::number / pow(10, 9) as premium_net_fee
-    , parse_json(fees_string) :total_fee ::number / pow(10, 9) as total_fee
+    , parse_json_from_llm(fees_string) :premium ::number / pow(10, 9) as premium
+    , parse_json_from_llm(fees_string) :premium_net_fees ::number / pow(10, 9) as premium_net_fee
+    , parse_json_from_llm(fees_string) :total_fee ::number / pow(10, 9) as total_fee
 
   from solana.core.fact_events
   inner join solana.core.fact_transactions
@@ -17267,7 +17267,7 @@ with t0 as (
 )
 , t3 as (
     select twitter_id
-    , parse_json(
+    , parse_json_from_llm(
         concat(
             '["', 
             replace(ecosystem_list, ',', '", "'), 

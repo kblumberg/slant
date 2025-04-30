@@ -1,7 +1,6 @@
 import time
 import markdown
 from flask_cors import CORS
-from ai.ai import ask_agent
 from utils.utils import log
 from constants.keys import SLANT_API_KEY
 from scripts.update_tweets import update_tweets
@@ -71,28 +70,6 @@ def sharky_orderbooks_route():
         "data": val.to_dict(orient='records')
     })
 
-@app.route('/ask', methods=['GET'])
-def ask():
-    try:
-        # log('ask')
-
-        query = request.args.get('query', '')
-        # log(f'query: {query}')
-        conversation_id = request.args.get('conversation_id', '')
-        # log(f'conversation_id: {conversation_id}')
-
-        if not query:
-            return jsonify({"error": "query required"}), 400
-        if not conversation_id:
-            return jsonify({"error": "conversation_id required"}), 400
-
-        response = Response(stream_with_context(ask_agent(query, conversation_id)), content_type='text/event-stream')
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
-        return response
-    except Exception as e:
-        # log(e)
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/ask_analyst', methods=['GET'])
 def ask_analyst_route():

@@ -11,6 +11,7 @@ import Message from '@/types/Message';
 import { motion, AnimatePresence } from "framer-motion";
 import HighchartsData from '@/types/HighchartsData';
 import HighchartsDataSeries from '@/types/HighchartsDataSeries';
+import ChatData from '@/types/ChatData';
 
 // const texts = [
 //   "Writing query",
@@ -124,12 +125,12 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			// const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
 
 			eventSource.onmessage = (event) => {
-				// console.log("SSE update:");
-				// console.log(event);
+				console.log("SSE update:");
+				console.log(event);
 				try {
 				  const data = JSON.parse(event.data);
-				//   console.log('eventSource.onmessage data');
-				//   console.log(data);
+				  console.log('eventSource.onmessage data');
+				  console.log(data);
 
 					// Process the successful response
 					// const msg = result.response
@@ -152,84 +153,105 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 						const parsedData = data.data;
 						console.log('eventSource.onmessage data');
 						console.log(data);
-						let highchartsOptions = parsedData?.highcharts || {};
-						const highchartsData = parsedData?.highcharts_data || [];
-						console.log(`highchartsOptions`)
-						console.log(highchartsOptions)
-						console.log(`highchartsData`)
-						console.log(highchartsData)
+						let highchartsOptionsList = parsedData?.highcharts || [];
+						// let highchartsDataList = parsedData?.highcharts_datas || [];
+						console.log(`highchartsOptionsList`)
+						console.log(highchartsOptionsList)
+						// console.log(`highchartsDataList`)
+						// console.log(highchartsDataList)
+						const chatData: ChatData[] = [];
 						try {
-							if (typeof highchartsOptions === "string") {
-								highchartsOptions = JSON.parse(highchartsOptions)
+							if (typeof highchartsOptionsList === "string") {
+								highchartsOptionsList = JSON.parse(highchartsOptionsList)
 							}
-							console.log(`highchartsOptions`)
-							console.log(highchartsOptions)
-							const highchartsDataParsed: HighchartsData = typeof highchartsData === "string" ? JSON.parse(highchartsData) : highchartsData;
-							console.log(`highchartsDataParsed`)
-							console.log(highchartsDataParsed)
-							highchartsOptions['credits'] = {'enabled': false}
-							const { x, series, mode } = highchartsDataParsed;
-							console.log(`highcharts mode = ${mode}`)
-							console.log(`highcharts series`)
-							console.log(series)
-							console.log(`highcharts x`)
-							console.log(x)
-
-							// const scales = {};
-
-							if (mode === "timestamp") {
-								// Each data point already has its own `x` in the backend
-								highchartsOptions.xAxis = { type: "datetime" };
-								// highchartsOptions.series = series;
-
-								// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
-									const matchedSeries = series.find(
-										(s: HighchartsDataSeries) => s.name.toLowerCase() === seriesConfig.column.toLowerCase() || s.name.toLowerCase() === seriesConfig.name.toLowerCase()
-									);
-									if (matchedSeries) {
-										return {
-											...seriesConfig,
-											data: matchedSeries.data
-										};
-									}
-									return seriesConfig;
-								});
-							  } else {
-								highchartsOptions.xAxis = { categories: x };
-								highchartsOptions.series = series.map((s: HighchartsDataSeries) => ({
-								  ...s,
-								  data: s.data
-								}));
+							// if (typeof highchartsDataList === "string") {
+							// 	highchartsDataList = JSON.parse(highchartsDataList)
+							// }
+							console.log(`highchartsOptionsList`)
+							console.log(highchartsOptionsList)
+							for (let i = 0; i < highchartsOptionsList.length; i++) {
+								const highchartsOptions = highchartsOptionsList[i];
+								// const highchartsData = highchartsDataList[i];
 								console.log(`highchartsOptions`)
 								console.log(highchartsOptions)
+								console.log(`highchartsOptions.xAxis`)
+								console.log(highchartsOptions.xAxis)
+								// const highchartsDataParsed: HighchartsData = typeof highchartsData === "string" ? JSON.parse(highchartsData) : highchartsData;
+								// console.log(`highchartsDataParsed`)
+								// console.log(highchartsDataParsed)
+								highchartsOptions['credits'] = {'enabled': false}
+								// const { x, series, mode } = highchartsDataParsed;
+								// console.log(`highcharts mode = ${mode}`)
+								// console.log(`highcharts series`)
+								// console.log(series)
+								// console.log(`highcharts x`)
+								// console.log(x)
+	
+								// const scales = {};
+	
+								// if (mode === "timestamp") {
+								// 	// Each data point already has its own `x` in the backend
+								// 	highchartsOptions.xAxis = { type: "datetime" };
+								// 	// highchartsOptions.series = series;
+	
+								// 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								// 	highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
+								// 		const matchedSeries = series.find(
+								// 			(s: HighchartsDataSeries) => s.name.toLowerCase() === seriesConfig.column.toLowerCase() || s.name.toLowerCase() === seriesConfig.name.toLowerCase()
+								// 		);
+								// 		if (matchedSeries) {
+								// 			return {
+								// 				...seriesConfig,
+								// 				data: matchedSeries.data
+								// 			};
+								// 		}
+								// 		return seriesConfig;
+								// 	});
+								//   } else {
+								// 	// highchartsOptions.xAxis = { categories: x };
+								// 	highchartsOptions.series = series.map((s: HighchartsDataSeries) => ({
+								// 	  ...s,
+								// 	  data: s.data
+								// 	}));
+								// 	console.log(`highchartsOptions`)
+								// 	console.log(highchartsOptions)
+								// }
+								chatData.push({
+									highcharts: highchartsOptions,
+									highcharts_data: null,
+									flipside_data: null,
+									// highcharts_data: highchartsData,
+									// flipside_data: highchartsData
+								});
+								// const series = highchartsOptions.series.map(({ name, column }: { name: string, column: string }) => ({
+								// 	name,
+								// 	data: highchartsData.map((row: any) => row[column])
+								// }));
+								// console.log(`series`)
+								// console.log(series)
+								// highchartsOptions.series = series;
+								// console.log(`highchartsOptions`)
+								// console.log(highchartsOptions)
 							}
-							// const series = highchartsOptions.series.map(({ name, column }: { name: string, column: string }) => ({
-							// 	name,
-							// 	data: highchartsData.map((row: any) => row[column])
-							// }));
-							// console.log(`series`)
-							// console.log(series)
-							// highchartsOptions.series = series;
-							// console.log(`highchartsOptions`)
-							// console.log(highchartsOptions)
+
 						} catch (error) {
 							console.error('Error parsing highcharts options:', error);
 						}
+						console.log(`chatData`)
+						console.log(chatData)
 						const botMessage: Message = {
 							id: (Date.now() + 1).toString(),
 							content: data.response,
-							data: {
-								highcharts: highchartsOptions,
-								highcharts_data: highchartsData,
-								flipside_data: highchartsData
-							},
+							data: chatData,
 							sender: 'bot',
 							timestamp: new Date(),
 						// data: null,
 							query: query
 						};
+						console.log(`botMessage`)
+						console.log(botMessage)
 						setMessages(prev => [...prev, botMessage]);
+						console.log(`252`)
 					}
 		  
 				//   setMessages((prev) => [...prev, data]);
@@ -240,7 +262,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			};
 
 			eventSource.onerror = (err) => {
-			  console.log("SSE connection error:", err);
+			  console.log("SSE connection error:");
+			  console.log(err);
 			  setIsLoading(false);
 			  setStatus('');
 			  eventSource.close();
@@ -347,20 +370,42 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	// console.log(messages)
 
 	if (messages.length == 0) {
+		// const placeholder = inputText == '' || true ? <div className="text-black text-sm"><ol>
+		// 	I can research any topic on Solana and provide in-depth data analysis. For best results:
+		// 		<li>Include example transaction ids with description</li>
+		// 		<li>Any relevant program ids, addresses, etc</li>
+		// 		<li>Details on timeframe</li>
+		// 	</ol>
+		// </div> : null;
 		return(
 			<div className="flex items-center justify-center min-h-screen sm:p-12 flex flex-col items-center justify-center p-6">
 				<div className="flex flex-col h-full w-full sm:w-3/5 m-auto rounded-md pb-20">
 					<div className='text-6xl font-semibold text-white p-10 text-center'>Ask for alpha</div>
-
-					<div className="flex space-x-4">
-						<textarea
-							value={inputText}
-							onChange={(e) => setInputText(e.target.value)}
-							onKeyPress={handleKeyPress}
-							placeholder="Ask Slant..."
-							className="flex-1 rounded resize-none border p-3 focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent"
-							rows={1}
-						/>
+					<div className="relative flex space-x-4">
+					<div className="bg-white flex w-full h-full">
+					{inputText === '' ? (
+						<div className="transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute top-12 left-8 max-w-3/4 z-1">
+							<ul className="list-disc list-inside">
+								<li>Include example transaction ids with description</li>
+								<li>Any relevant program ids, addresses, etc</li>
+								<li>Details on timeframe</li>
+							</ul>
+						</div>
+						) : (
+							<div className="transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute top-12 left-4 max-w-3/4 z-1">
+								Provide as many details as possible for best results
+							</div>
+						)
+					}
+					<textarea
+						value={inputText}
+						onChange={(e) => setInputText(e.target.value)}
+						onKeyPress={handleKeyPress}
+						placeholder="I can research any topic on Solana and provide in-depth data analysis. For best results:"
+						className="z-1 placeholder-gray-600 bg-transparent min-h-36 flex-1 rounded resize-none border p-4 focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent"
+						rows={1}
+					/>
+					</div>
 						<button
 							onClick={handleSend}
 							disabled={!inputText.trim() || isLoading}
@@ -373,11 +418,11 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			</div>
 		)
 	}
-	const messageDivs = messages.map((message) => {
+	const messageDivs = messages.map( (message) => {
 		const isUser = message.sender === 'user';
 		if (isUser) {
 			return (
-				<div key={message.id} className={`flex justify-end`}>
+				<div key={message.id} className={`flex justify-end break-words whitespace-normal`}>
 					<div className={`chat-container user-message max-w-[70%] rounded-lg p-3 ${isUser ? 'text-white' : ''}`}>
 						<div className="text-base">{message.content.split('\n').map((line, i) => (
 							<p key={i}>{line}</p>
@@ -391,42 +436,49 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			// Add target="_blank" to all links in the content
 			const contentWithNewTabLinks = content.replace(/<a\s+(?:[^>]*?)href=/g, '<a target="_blank" href=');
 			// console.log(`typeof message.data?.highcharts = ${typeof message.data?.highcharts}`)
-			const highcharts = message.data?.highcharts;
-			let highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
-			if (highchartsOptions) {
-				highchartsOptions = {
-					...highchartsOptions,
-					yAxis: {
-						...highchartsOptions.yAxis,
-						labels: {
-						...((highchartsOptions.yAxis && highchartsOptions.yAxis.labels) || {}),
-						formatter: function () {
-							if (this.value >= 1e9) {
-							return (this.value / 1e9) + 'B';
-							} else if (this.value >= 1e6) {
-							return (this.value / 1e6) + 'M';
-							} else if (this.value >= 1e3) {
-							return (this.value / 1e3) + 'K';
+			const chatDataDivs = message?.data || [];
+			
+			const highchartsDivs = chatDataDivs.map((chatData: ChatData, index: number) => {
+				const highcharts = chatData.highcharts;
+				let highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
+				if (highchartsOptions) {
+					highchartsOptions = {
+						...highchartsOptions,
+						yAxis: {
+							...highchartsOptions.yAxis,
+							labels: {
+							...((highchartsOptions.yAxis && highchartsOptions.yAxis.labels) || {}),
+							formatter: function () {
+								if (this.value >= 1e9) {
+								return (this.value / 1e9) + 'B';
+								} else if (this.value >= 1e6) {
+								return (this.value / 1e6) + 'M';
+								} else if (this.value >= 1e3) {
+								return (this.value / 1e3) + 'K';
+								}
+								return this.value;
 							}
-							return this.value;
+							}
 						}
-						}
-					}
-				};
-			}
-			// const highchartsData = message.data?.highcharts_data;
-			return (
+					};
+				}
+				// const highchartsData = message.data?.highcharts_data;
+				const divKey = `${message.id}-${index}`;
+				return (
+					<div key={divKey}>
+						<HighchartsReact highcharts={Highcharts} options={highchartsOptions} />
+					</div>
+				)
+			})
+			return(
+				
 				<div key={message.id} className={`flex justify-start`}>
-					<div className={`chat-container max-w-[85%] rounded-lg p-3 ${isUser ? 'text-black' : ''}`}>
-						{message.data && message.data.highcharts && (
-							<div>
-								<HighchartsReact highcharts={Highcharts} options={highchartsOptions} />
-							</div>
-						)}
-						<div className="text-base" dangerouslySetInnerHTML={{ __html: contentWithNewTabLinks }} />
+				<div className={`chat-container max-w-[85%] rounded-lg p-3 ${isUser ? 'text-black' : ''}`}>
+					{highchartsDivs}
+				<div className="text-base" dangerouslySetInnerHTML={{ __html: contentWithNewTabLinks }} />
 					</div>
 				</div>
-			)
+			);
 		}
 	})
 	return (

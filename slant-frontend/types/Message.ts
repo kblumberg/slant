@@ -5,7 +5,7 @@ interface Message {
 	content: string;
 	sender: 'user' | 'bot';
 	timestamp: Date;
-	data: ChatData | null;
+	data: ChatData[] | null;
 	query: string;
 }
 

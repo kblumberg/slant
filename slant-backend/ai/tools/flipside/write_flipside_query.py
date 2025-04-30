@@ -38,6 +38,11 @@ def write_flipside_query(state: JobState) -> JobState:
 
         Write a **correct, performant, and idiomatic** Snowflake SQL query that answers the user’s question.
 
+        Think carefully about the logic required to answer the user's question.
+
+        As a reminder, the user's question is:
+        {state['analysis_description']}
+
         Return ONLY the raw SQL (no extra text):
     """
 

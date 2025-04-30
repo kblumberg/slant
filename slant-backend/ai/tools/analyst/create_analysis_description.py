@@ -1,9 +1,8 @@
-import re
 import time
-import json
 from utils.utils import log
 from classes.JobState import JobState
 from ai.tools.utils.utils import parse_messages
+from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def create_analysis_description(state: JobState) -> JobState:
 
@@ -26,7 +25,11 @@ def create_analysis_description(state: JobState) -> JobState:
 
     Ignore small talk or general curiosity—just extract the user’s core analytical request(s).
 
-    Format your answer as a short paragraph.
+    Format your answer as a short paragraph. Be concise and direct. Do not preface with anything like "Here is a summary of the requested analysis:" or "Here is a summary of the user's request:" or anything like that. Just provide the summary.
+
+    Ignore analyses requests from the "USER" that have already been answered by the "ASSISTANT".
+
+    Prioritize the most recent analysis request from the "USER" (end of the message history).
 
     ---
 
@@ -43,9 +46,8 @@ def create_analysis_description(state: JobState) -> JobState:
     )
     # log('formatted_prompt')
     # log(formatted_prompt)
-    response = state['llm'].invoke(formatted_prompt).content
-    summary = re.sub(r'```json', '', response)
-    summary = re.sub(r'```', '', summary)
+    response = state['complex_llm'].invoke(formatted_prompt).content
+    summary = parse_json_from_llm(response, state['llm'], to_json=False)
     log('create_analysis_description')
     log(summary)
     time_taken = round(time.time() - start_time, 1)

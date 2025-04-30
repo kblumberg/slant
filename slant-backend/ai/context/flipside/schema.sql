@@ -3,8 +3,10 @@ Here is the schema, tables, and columns for the Flipside database. Use this to u
 
 ================================================================================
 
-Overall Notes:
-- If you have a `block_timestamp` filter, ALWAYS put that first in the WHERE clause to optimize performance.
+Performance Notes:
+- If you have a `block_timestamp` filter or join, ALWAYS put that first in the WHERE clause to optimize performance.
+- ALWAYS filter and join on `block_timestamp` when possible and appropriate to optimize performance.
+- Even when you are filtering one table for `block_timestamp`, filter the other table for `block_timestamp` as well to improve performance. e.g. `FROM table1 JOIN table2 ON table1.block_timestamp = table2.block_timestamp AND table1.tx_id = table2.tx_id WHERE table1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE()) AND table2.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())`
 
 ================================================================================
 
@@ -173,7 +175,13 @@ Schema: nft
 
 
 Table: solana.nft.ez_nft_sales (default to using this table for NFT sales)
+
 Purpose: Records NFT sales
+
+Notes:
+- Use this table instead of `solana.nft.fact_nft_sales`
+- For the `marketplace` column, group similar values together - e.g. `case when marketplace ilike '%magic eden%' then 'Magic Eden' when marketplace ilike '%tensor%' then 'Tensor'...` (use this technique unless there are explicit instructions to the contrary)
+
 Key Columns:
 - marketplace (e.g. tensorswap, magic eden v3, magic eden v2, Magic Eden, solsniper, tensor, hadeswap, hyperspace, exchange art, solanart)
 - marketplace_version (e.g. v1, v2, v3)
@@ -186,11 +194,11 @@ Key Columns:
 - program_id
 - buyer_address
 - seller_address
-- mint
+- mint: address that uniquely identifies the NFT
 - nft_name
-- price (if you are using this column, best to filter for currency_address = "So11111111111111111111111111111111111111111" as well to ensure you are getting SOL volume)
-- currency_address (typically "So11111111111111111111111111111111111111111")
-- currency_symbol (typically "SOL")
+- price: The amount of Solana the NFT was purchased for (if you are using this column, best to filter for currency_address = "So11111111111111111111111111111111111111111" as well to ensure you are getting SOL volume)
+- currency_address (typically "So11111111111111111111111111111111111111111", others include "3dgCCb15HMQSA4Pn3Tfii5vRk7aRqTH95LJjxzsG2Mug" honeland, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" usdc, and "MEFNBXixkEbait3xn9bkm8WsJzXtVsaJEn4c8Sam21u" $ME magic eden)
+- currency_symbol (typically "SOL", others include "HXD", "USDC", and "ME")
 - price_usd
 - is_compressed
 - nft_collection_name
@@ -264,6 +272,26 @@ Key Columns:
 - mint_standard_type
 
 
+
+Table: solana.nft.fact_nft_sales (**this table is deprecated, use `solana.nft.ez_nft_sales` instead**)
+Purpose: Records NFT sales
+Key Columns:
+- marketplace (e.g. tensorswap, magic eden v3, magic eden v2, Magic Eden, solsniper, tensor, hadeswap, hyperspace, exchange art, solanart)
+- block_timestamp
+- block_id
+- tx_id
+- succeeded
+- index
+- inner_index
+- program_id
+- purchaser
+- seller
+- mint
+- sales_amount
+- is_compressed
+- currency_address
+
+
 ================================================================================
 
 
@@ -282,7 +310,7 @@ Notes:
 - If the token is not in `solana.price.ez_prices_hourly`, you can calculate the price using the `solana.defi.ez_dex_swaps` table instead
 Key Columns:
 - hour
-- token_address
+- token_address (SOL is "So11111111111111111111111111111111111111112" in this table)
 - symbol
 - name
 - price
@@ -309,13 +337,6 @@ Schema: defi
 
 Table: solana.defi.ez_dex_swaps
 Purpose: Records DEX swaps
-Notes:
-- Use this table instead of fact_swaps
-- Only shows swaps on the underlying DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix'); to get Jupiter aggregator swaps use `fact_swaps_jupiter_inner` or `fact_swaps_jupiter_summary`
-- `swap_from_amount_usd` and `swap_to_amount_usd` will generally be roughly the same values (except for fees)
-- Because we dont have price data for all tokens, it is best practice to use coalescing functions to get the price (e.g., `COALESCE(swap_from_amount_usd, swap_to_amount_usd)` or `COALESCE(swap_to_amount_usd, swap_from_amount_usd)`)
-- If we dont have price data for `swap_from_mint` then `swap_from_amount_usd` will be null (in this case, you can use `swap_to_amount_usd` to get usd value)
-- If we dont have price data for `swap_to_mint` then `swap_to_amount_usd` will be null (in this case, you can use `swap_from_amount_usd` to get usd value)
 
 Key Columns:
 - swap_program: Name of DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix')
@@ -325,13 +346,26 @@ Key Columns:
 - program_id
 - swapper
 - swap_from_mint
-- swap_from_symbol
+- swap_from_symbol (can be null; best to use `coalesce(swap_from_symbol, swap_from_mint)` to get the symbol)
 - swap_from_amount
-- swap_from_amount_usd (can be null if flipside doesnt have price data)
+- swap_from_amount_usd (can be null if flipside doesnt have price data; therefore, always use `coalesce(swap_from_amount_usd, swap_to_amount_usd)` to get the usd value)
 - swap_to_mint
-- swap_to_symbol
+- swap_to_symbol (can be null; best to use `coalesce(swap_to_symbol, swap_to_mint)` to get the symbol)
 - swap_to_amount
-- swap_to_amount_usd (can be null if flipside doesnt have price data)
+- swap_to_amount_usd (can be null if flipside doesnt have price data; therefore, always use `coalesce(swap_to_amount_usd, swap_from_amount_usd)` to get the usd value)
+- _log_id: Combination of TX_ID and event index
+- ez_swaps_id: Unique identifier for each row
+
+Notes:
+- Use this table instead of `fact_swaps`
+- Only shows swaps on the underlying DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix'); to get Jupiter aggregator swaps use `fact_swaps_jupiter_inner` or `fact_swaps_jupiter_summary`
+- `swap_from_amount_usd` and `swap_to_amount_usd` will generally be roughly the same values (except for fees)
+- Because we dont have price data for all tokens, it is best practice to use coalescing functions to get the price (e.g., `COALESCE(swap_from_amount_usd, swap_to_amount_usd)` or `COALESCE(swap_to_amount_usd, swap_from_amount_usd)`)
+- If we dont have price data for `swap_from_mint` then `swap_from_amount_usd` will be null (in this case, you can use `swap_to_amount_usd` to get usd value)
+- If we dont have price data for `swap_to_mint` then `swap_to_amount_usd` will be null (in this case, you can use `swap_from_amount_usd` to get usd value)
+- `solana.defi.ez_dex_swaps` only includes successful swaps by default. There is NO `succeeded` column. If you need to include failed swaps, use `fact_swaps` instead.
+
+
 
 
 Table: solana.defi.fact_swaps
@@ -807,3 +841,29 @@ Key Columns:
 General Notes:
 - to get current circulating supply, take `mint_amount` from `fact_token_mint_actions` and then subtract `burn_amount` from `solana.defi.fact_token_burn_actions`
 - market cap = price * circulating supply
+
+
+================================================================================
+
+Strategies to identify transactions:
+Many analyses will require you to identify and parse the specific transactions types. This means creating queries, joins, and filters to get the data you need.
+
+
+The easiest and most efficient way to identify and parse the correct transactions you are looking for:
+- For swap transactions, use the `solana.defi....` tables. Those are curated tables that have already parsed the correct information.
+- For nft transactions, use the `solana.nft....` tables. Those are curated tables that have already parsed the correct information.
+- For other transactions, here are the ways to identify the correct transactions, ordered by preference:
+  1. use the `solana.core.ez_events_decoded` table using the `program_id` filter.
+    - This table is very optimized, fast, and has parsed data very cleanly, but is only curated for certain program ids and may not have data going back in time.
+    - If there is data for the `program_id` and correct date range you are looking for, this is the best way to go.
+    - BUT, you MUST make sure that it has data for the `program_id` and correct date range you are looking for.
+    - To ensure it does, you can cross reference the `solana.core.fact_events` table, which has all entries for all program ids for all dates.
+  2. If that does not work, you can typically use some combination of the other tables:
+  use the `solana.core.fact_transactions` table and filter for the correct program id.
+  3. use the `solana.core.fact_decoded_instructions` table and filter for the correct program id.
+  - use the `solana.core.fact_events` table and filter for the correct event type.
+
+
+================================================================================
+
+Make sure the query includes ALL desired transaction types and excludes all others.

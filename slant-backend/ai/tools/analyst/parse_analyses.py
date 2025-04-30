@@ -4,7 +4,7 @@ from classes.JobState import JobState
 from classes.Analysis import Analysis
 from utils.utils import clean_project_tag
 from ai.tools.utils.utils import parse_messages
-from ai.tools.utils.parse_json import parse_json
+from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def parse_analyses(state: JobState) -> JobState:
     for _ in range(1):
@@ -96,7 +96,7 @@ def parse_analyses(state: JobState) -> JobState:
             response = state['llm'].invoke(prompt).content
             log('parse_analyses response')
             log(response)
-            j = parse_json(response, state['llm'])
+            j = parse_json_from_llm(response, state['llm'])
             analyses = []
             for analysis in j:
                 project = clean_project_tag(analysis['project'])

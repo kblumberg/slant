@@ -7,6 +7,7 @@ from classes.JobState import JobState
 from classes.Analysis import Analysis
 from ai.tools.utils.utils import read_schemas
 from db.flipside.rag_search_queries import rag_search_queries
+from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def decide_flipside_tables_from_queries(state: JobState) -> JobState:
     start_time = time.time()
@@ -69,11 +70,7 @@ def decide_flipside_tables_from_queries(state: JobState) -> JobState:
     # log('decide_flipside_tables_from_queries formatted_prompt')
     # log(formatted_prompt[-10000:])
     response = state['complex_llm'].invoke(formatted_prompt).content
-    response = re.sub(r'```json', '', response)
-    response = re.sub(r'```', '', response)
-    # log('response')
-    # log(response)
-    j = json.loads(response)
+    j = parse_json_from_llm(response, state['llm'])
     # log('j')
     # log(j)
     # log('proposed_query')

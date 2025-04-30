@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 from utils.utils import log
 from classes.JobState import JobState
@@ -5,6 +6,10 @@ from pinecone import Pinecone
 from langchain_openai import OpenAIEmbeddings
 from constants.keys import PINECONE_API_KEY
 from tavily import TavilyClient
+from solana.rpc.api import Client
+from constants.keys import SOLANA_RPC_URL
+from solana.transaction import Signature
+
 
 
 def get_scale(data: pd.DataFrame, col: str) -> int:
@@ -24,12 +29,14 @@ def read_schemas():
     return schemas
 
 def get_refined_prompt(state: JobState):
-    projects = list(set([ x.project for x in state['analyses']]))
-    activities = list(set([ x.activity for x in state['analyses']]))
+    projects = list(set([ x.project for x in state['analyses']]))[:3]
+    activities = list(set([ x.activity for x in state['analyses']]))[:3]
     tokens = list(set([token for x in state['analyses'] for token in x.tokens]))
     query = list(set(projects + activities + tokens))
-    refined_prompt = ' '.join(query)
-    return refined_prompt
+    query_text = ' '.join(query)
+    l = 390 - len(query_text)
+    refined_prompt = state['analysis_description'][:l] + '\n\n' + query_text
+    return refined_prompt[:390]
 
 def parse_messages(state: JobState):
     role_map = {
@@ -67,6 +74,11 @@ def get_sql_notes():
         - Tokens are typically filtered by `token_address` or `mint` or `___mint` in the schema.
         - Programs are typically filtered by `program_id` in the schema.
         - Do NOT use any placeholders. Only use real mints, addresses, program ids, dates, etc.
+        - Do NOT use any columns that are not listed in the schema.
+        - Make sure to use LIMIT if you are only looking for a specific number of results.
+        - Project program_ids can change over time. You may need to include multiple program ids in the WHERE clause to get the correct results.
+        - All timestamps are in UTC; default to that unless the user explicitly mentions a different timezone.
+        - To do time comparisons, use `dateadd` and `current_timestamp()` or `current_date()` like so: `and block_timestamp >= dateadd(hour, -12, current_timestamp())`
     """
 
 def get_other_info():
@@ -81,7 +93,7 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
     additional_context = '## 📚 Reference Materials\n\n'
     if use_summary:
         exclude_keys = exclude_keys + ['tweets', 'web_search_results', 'projects', 'additional_contexts']
-        additional_context = additional_context + '**RELATED INFORMATION**: \n' + 'Factor this into your analysis, along with the other information provided:\n\n' + state['context_summary']
+        additional_context = additional_context + '**RELATED INFORMATION**: \n' + 'These are just recommendations, not requirements. Factor other information into your analysis, but use this if it is helpful:\n\n' + state['context_summary']
     if preface:
         additional_context = additional_context + preface + '\n\n'
     if len(state['tweets']) > 0 and 'tweets' not in exclude_keys:
@@ -96,13 +108,26 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
     if len(state['schema']) > 0 and 'schema' not in exclude_keys:
         additional_context = additional_context + '**FLIPSIDE DATA SCHEMA**: \n' + state['schema'] + '\n\n' + get_sql_notes()
         additional_context = additional_context + get_sql_notes()
+    if len(state['transactions']) > 0 and 'transactions' not in exclude_keys:
+        transactions = '\n'.join([ str(transaction) for transaction in state['transactions']])
+        transaction_text = f"""
+        **EXAMPLE TRANSACTIONS**:
+        - Use the following example transactions for inspiration and to understand what the correct addresses, program ids, etc. are.
+        - Prioritize this information over the other reference materials, since it is provided directly from the user
+        - Pay particular attention to the `programId` fields; if there is a single `programId` or the same one used multiple times, that is likely the one we want to use.
+
+        Transactions:
+        {transactions}
+        """
+        additional_context = additional_context + transaction_text
     if len(state['additional_contexts']) > 0 and 'additional_contexts' not in exclude_keys:
         additional_context = additional_context + '**ADDITIONAL CONTEXT**: \n' + '\n'.join(state['additional_contexts'])
     additional_context = additional_context + '**OTHER INFO**: \n' + get_other_info()
     return additional_context
 
 def get_web_search(question: str, tavily_client: TavilyClient) -> str:
-    web_search_results = tavily_client.search('solana blockchain ' + question, search_depth="advanced", include_answer=True, include_images=False, max_results=5, include_raw_content=True)
+    question = 'solana blockchain ' + question
+    web_search_results = tavily_client.search(question[:400], search_depth="advanced", include_answer=True, include_images=False, max_results=5, include_raw_content=True)
     if 'answer' in web_search_results.keys():
         answer = web_search_results['answer']
         if 'results' in web_search_results.keys():
@@ -136,3 +161,18 @@ def rag_search_tweets(question: str) -> str:
         tweets.append(tweet['text'])
     return '\n'.join(tweets)
 
+
+def parse_tx(tx_id: str):
+    tx_id = '123hQt9b7bwfGDhfSHBmd5GsDcvs26GdN8x5ch1b8GMjL3S61XiFB4rwTjcKUFS6z9QAUGf54pdV7uR7utVf9M2a'
+    client = Client(SOLANA_RPC_URL)
+    sig = Signature.from_string(tx_id)
+    tx_data = client.get_transaction(sig, encoding="jsonParsed", max_supported_transaction_version=0).to_json()
+    tx_data = json.loads(tx_data)
+    accountKeys = [x['pubkey'] for x in tx_data['result']['transaction']['message']['accountKeys']]
+    instructions = [x for x in tx_data['result']['transaction']['message']['instructions'] if not x['programId'] in ['ComputeBudget111111111111111111111111111111']]
+    logMessages = [x for x in tx_data['result']['meta']['logMessages'] ]
+    return {
+        'accountKeys': accountKeys,
+        'instructions': instructions,
+        'logMessages': logMessages
+    }

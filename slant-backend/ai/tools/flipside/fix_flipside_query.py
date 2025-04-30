@@ -53,4 +53,4 @@ def fix_flipside_query(state: JobState) -> JobState:
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
     log(f"fix_flipside_query query:")
     log(sql_query)
-    return {'improved_flipside_sql_query': sql_query, 'completed_tools': ["FixFlipsideQuery"], 'upcoming_tools': ["VerifyFlipsideQuery"]}
+    return {'verified_flipside_sql_query': sql_query, 'completed_tools': ["FixFlipsideQuery"], 'upcoming_tools': ["VerifyFlipsideQuery"]}

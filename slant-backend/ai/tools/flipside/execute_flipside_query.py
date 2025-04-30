@@ -29,13 +29,18 @@ def execute_flipside_query(state: JobState) -> JobState:
     #     except json.JSONDecodeError:
     #         return "Invalid JSON input"
     query = state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
-    df, error = fs_load_data(query)
+    df, error = fs_load_data(query, timeout_minutes=10)
+    df = df.dropna()
+    # df = df.head(100)
     if error:
         log('execute_flipside_query error')
         log(error)
     # log('df.head(3)')
     # log(df.head(3))
+    if 'category' in df.columns:
+        df = df[df.category.notnull()]
     if 'date_time' in df.columns:
+        df = df[df.date_time.notnull()]
         df['timestamp'] = pd.to_datetime(df['date_time']).astype(int) // 10**6
         # df['timestamp'] = df['timestamp'].apply(lambda x: str(x)[:19].replace('T', ' ') )
     attempts = state['flipside_sql_attempts'] + 1

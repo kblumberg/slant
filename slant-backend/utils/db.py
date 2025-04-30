@@ -14,12 +14,15 @@ from utils.utils import log
 from flipside import Flipside
 
 
-def pg_execute_query(query):
+def pg_execute_query(query, values=None):
 	# log('pg_execute_query')
 	# log(query)
 	conn = psycopg2.connect(POSTGRES_ENGINE)
 	cursor = conn.cursor()
-	cursor.execute(query)
+	if values:
+		cursor.execute(query, values)
+	else:
+		cursor.execute(query)
 	conn.commit()
 	conn.close()
 
@@ -64,7 +67,7 @@ def pc_load_data(index, namespace=None):
 				all_records = pd.concat([all_records, cur])
 	return all_records
 
-def pg_load_data(query, timeout_in_seconds=0):
+def pg_load_data(query, timeout_in_seconds=0, values=None):
 	try:
 		# log('pg_load_data')
 		# log(query)
@@ -72,7 +75,10 @@ def pg_load_data(query, timeout_in_seconds=0):
 		cursor = conn.cursor()
 		if timeout_in_seconds > 0:
 			cursor.execute(f"SET statement_timeout = {timeout_in_seconds * 1000};")
-		cursor.execute(query)
+		if values:
+			cursor.execute(query, values)
+		else:
+			cursor.execute(query)
 		df = pd.DataFrame(cursor.fetchall(), columns=[x[0] for x in cursor.description])
 		df.columns = [x.lower() for x in df.columns]
 		return df

@@ -10,7 +10,7 @@ from typing import Annotated, TypedDict, List, Literal
 from classes.Analysis import Analysis
 from utils.db import pg_upload_data
 from tavily import TavilyClient
-
+from classes.Transaction import Transaction
 def append(a, b):
     return a + b
 
@@ -31,12 +31,16 @@ class JobState(TypedDict):
     improved_flipside_sql_query: str
     verified_flipside_sql_query: str
     flipside_sql_errors: Annotated[List[str], append]
+    investigation_flipside_sql_errors: Annotated[List[str], append]
     flipside_sql_queries: Annotated[List[str], append]
+    investigation_flipside_sql_queries: Annotated[List[str], append]
     flipside_sql_query_results: Annotated[List[pd.DataFrame], append]
+    investigation_flipside_sql_query_results: Annotated[List[pd.DataFrame], append]
     flipside_sql_error: str
-    highcharts_config: dict
+    highcharts_configs: list[dict]
     messages: list[str]
     analyses: list[Analysis]
+    transactions: Annotated[List[Transaction], append]
     llm: ChatAnthropic | ChatOpenAI
     complex_llm: ChatAnthropic | ChatOpenAI
     reasoning_llm: ChatAnthropic | ChatOpenAI
@@ -69,7 +73,7 @@ class JobState(TypedDict):
             'verified_flipside_sql_query': self.verified_flipside_sql_query,
             'flipside_sql_error': self.flipside_sql_error,
             'conversation_id': self.conversation_id,
-            'highcharts_config': self.highcharts_config,
+            'highcharts_configs': self.highcharts_configs,
             'messages': self.messages,
             'analyses': self.analyses,
             'llm': self.llm,
@@ -81,6 +85,7 @@ class JobState(TypedDict):
             'run_tools': self.run_tools,
             'completed_tools': self.completed_tools,
             'upcoming_tools': self.upcoming_tools,
+            'transactions': self.transactions,
             'flipside_tables': self.flipside_tables,
             'flipside_example_queries': self.flipside_example_queries,
             'flipside_sql_query_result': self.flipside_sql_query_result,
