@@ -35,7 +35,7 @@ class PostgresConversationMemory(BaseChatMessageHistory):
         self.conversation_id = conversation_id
         self.messages = []
         self.message_df = pd.DataFrame()
-
+        self.state_df = pd.DataFrame()
     
     def load_messages(self):
         query = f"""
@@ -88,6 +88,37 @@ class PostgresConversationMemory(BaseChatMessageHistory):
         
         self.messages = messages
         self.message_df = df
+
+    def load_previous_state(self) -> pd.DataFrame:
+        query = f"""
+        with user_messages as (
+            select id as user_message_id
+            from user_messages
+            where conversation_id = '{self.conversation_id}'
+        )
+        select *
+        , state ->> 'tweets_summary' as tweets_summary
+        , state ->> 'web_search_summary' as web_search_summary
+        , state ->> 'flipside_sql_query' as flipside_sql_query
+        , state ->> 'flipside_sql_query_result' as flipside_sql_query_result
+        , state ->> 'user_prompt' as response
+        , state ->> 'web_search_results' as web_search_results
+        , state ->> 'analyses' as analyses
+        , state ->> 'analysis_description' as analysis_description
+        , state ->> 'flipside_sql_query' as flipside_sql_query
+        , state ->> 'response' as response
+        , state ->> 'flipside_example_queries' as flipside_example_queries
+        from state_snapshots ss
+        join user_messages um on um.user_message_id = ss.user_message_id
+        order by timestamp desc
+        limit 1
+        """
+        df = pg_load_data(query)
+        if len(df):
+            self.state_df = df
+            return df
+        else:
+            return pd.DataFrame()
 
     def save_conversation(self, state: JobState) -> None:
         conversation_id = state['conversation_id']
@@ -248,11 +279,15 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             'web_search_results': state['web_search_results'],
             'flipside_example_queries': state['flipside_example_queries'].query_id.tolist() if len(state['flipside_example_queries']) else [],
             'flipside_sql_query': state['flipside_sql_query'],
+            'flipside_sql_query_result': state['flipside_sql_query_result'].to_json(orient='records'),
             'improved_flipside_sql_query': state['improved_flipside_sql_query'],
             'verified_flipside_sql_query': state['verified_flipside_sql_query'],
             'analyses': [str(x) for x in state['analyses']],
             'reference_materials': state_to_reference_materials(state),
             'context_summary': state['context_summary'],
+            'tweets_summary': state['tweets_summary'],
+            'web_search_summary': state['web_search_summary'],
+            'tweets': [ x.id for x in state['tweets'] ],
             'transactions': [ x.id for x in state['transactions']],
             # 'follow_up_questions': state['follow_up_questions'],
             # 'tweets': state['tweets'],

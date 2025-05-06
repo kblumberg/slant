@@ -5,12 +5,8 @@ import time
 import re
 from tavily import TavilyClient
 from constants.keys import TAVILY_API_KEY
-from ai.tools.utils.utils import get_web_search
-# Config
-BASE_URL = "https://docs.loopscale.com/introduction/overview"
-ALLOWED_DOMAIN = "docs.loopscale.com"
+from utils.utils import log
 
-# Set to keep track of visited URLs
 
 
 # Headers to simulate a browser visit

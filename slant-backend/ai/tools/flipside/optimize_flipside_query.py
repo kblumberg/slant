@@ -12,7 +12,7 @@ from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
 from ai.tools.utils.utils import state_to_reference_materials
 
-def write_flipside_query(state: JobState) -> JobState:
+def optimize_flipside_query(state: JobState) -> JobState:
 
     reference_materials = state_to_reference_materials(state)
 

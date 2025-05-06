@@ -11,6 +11,8 @@ def extract_transactions(state: JobState) -> JobState:
 
     TASK: Parse the conversation history and identify any transaction ids mentioned and their corresponding context (e.g. what kind of transaction it is).
 
+    For context, transaction ids are all 88 characters long.
+
     CONVERSATION HISTORY:
     {messages}
 

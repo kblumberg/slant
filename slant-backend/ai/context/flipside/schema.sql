@@ -1,3 +1,4 @@
+# Flipside Database Schema
 
 Here is the schema, tables, and columns for the Flipside database. Use this to understand the available tables and columns.
 
@@ -13,7 +14,7 @@ Performance Notes:
 Schema: core
 Table: solana.core.dim_labels
 Purpose: Provides labels for Solana addresses (programs, accounts, etc.).
-Key Columns:
+Columns:
 - address
 - address_name (e.g. binance deposit_wallet, coinbase deposit_wallet, bybit deposit_wallet, stepn: token contract, gate.io deposit_wallet, kucoin deposit_wallet, okx deposit_wallet, backpack exchange deposit_wallet, kraken deposit_wallet, mexc deposit_wallet)
 - label_type (e.g. nft, cex, dex, games, token, operator, dapp, defi, bridge, chadmin)
@@ -22,7 +23,7 @@ Key Columns:
 
 Table: solana.core.ez_events_decoded
 Purpose: Provides decoded event data from program instructions. Use this table to extract data from events emitted by specific program ids.
-Key Columns:
+Columns:
 - block_timestamp
 - tx_id
 - signers
@@ -39,7 +40,7 @@ Key Columns:
 
 Table: solana.core.fact_transactions
 Purpose: Provides detailed transaction information.
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -62,7 +63,7 @@ Key Columns:
 
 Table: solana.core.fact_transfers
 Purpose: Tracks SOL and SPL token transfers.
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -75,7 +76,7 @@ Key Columns:
 
 Table: solana.core.fact_decoded_instructions
 Purpose: Provides decoded instruction data based on program IDLs.
-Key Columns:
+Columns:
 - tx_id
 - block_id
 - block_timestamp
@@ -89,7 +90,7 @@ Key Columns:
 
 Table: solana.core.fact_events
 Purpose: Records inner instructions generated during transaction execution.
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -103,7 +104,7 @@ Key Columns:
 
 Table: solana.core.fact_events_inner
 Purpose: Records inner instructions generated during transaction execution.
-Key Columns:
+Columns:
 - block_timestamp
 - tx_id
 - signers
@@ -118,7 +119,7 @@ Key Columns:
 
 Table: solana.core.fact_sol_balances
 Purpose: Records the balance of SOL in an account before and after a transaction.
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -132,7 +133,7 @@ Key Columns:
 
 Table: solana.core.fact_token_account_owners
 Purpose: Records the owner of a token account.
-Key Columns:
+Columns:
 - account_address: Address of token account
 - owner: The wallet holding the native SOL. This is represented as the same value as the 'account_address'.
 - start_block_id: Block where this ownership begins
@@ -141,7 +142,7 @@ Key Columns:
 
 Table: solana.core.fact_token_balances
 Purpose: Records the balance of a token account.
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -156,7 +157,7 @@ Key Columns:
 
 Table: solana.core.ez_signers
 Purpose: 1 row per signer. Summarizes the signers activity across all days.
-Key Columns:
+Columns:
 - signer
 - first_tx_date: The first date that the wallet performed a transaction on.
 - first_program_id: The ID of the first program this signer interacted with, excluding chain admin programs.
@@ -182,7 +183,7 @@ Notes:
 - Use this table instead of `solana.nft.fact_nft_sales`
 - For the `marketplace` column, group similar values together - e.g. `case when marketplace ilike '%magic eden%' then 'Magic Eden' when marketplace ilike '%tensor%' then 'Tensor'...` (use this technique unless there are explicit instructions to the contrary)
 
-Key Columns:
+Columns:
 - marketplace (e.g. tensorswap, magic eden v3, magic eden v2, Magic Eden, solsniper, tensor, hadeswap, hyperspace, exchange art, solanart)
 - marketplace_version (e.g. v1, v2, v3)
 - block_timestamp
@@ -211,7 +212,7 @@ Key Columns:
 
 Table: solana.nft.dim_nft_metadata
 Purpose: Stores metadata and attributes for NFTs on Solana, including collection information, creator details, and NFT characteristics
-Key Columns:
+Columns:
 - mint
 - nft_collection_name
 - collection_id
@@ -225,7 +226,7 @@ Key Columns:
 
 Table: solana.nft.fact_nft_mints
 Purpose: Tracks NFT minting events
-Key Columns:
+Columns:
 - block_id
 - block_timestamp
 - tx_id
@@ -240,7 +241,7 @@ Key Columns:
 
 Table: solana.nft.fact_nft_mint_actions
 Purpose: Tracks NFT minting events and actions
-Key Columns:
+Columns:
 - block_id
 - block_timestamp
 - tx_id
@@ -257,7 +258,7 @@ Key Columns:
 
 Table: solana.nft.fact_nft_burn_actions
 Purpose: Records NFT burns
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -275,7 +276,7 @@ Key Columns:
 
 Table: solana.nft.fact_nft_sales (**this table is deprecated, use `solana.nft.ez_nft_sales` instead**)
 Purpose: Records NFT sales
-Key Columns:
+Columns:
 - marketplace (e.g. tensorswap, magic eden v3, magic eden v2, Magic Eden, solsniper, tensor, hadeswap, hyperspace, exchange art, solanart)
 - block_timestamp
 - block_id
@@ -308,7 +309,7 @@ Table: solana.price.ez_prices_hourly
 Purpose: Provides price data for tokens on Solana
 Notes:
 - If the token is not in `solana.price.ez_prices_hourly`, you can calculate the price using the `solana.defi.ez_dex_swaps` table instead
-Key Columns:
+Columns:
 - hour
 - token_address (SOL is "So11111111111111111111111111111111111111112" in this table)
 - symbol
@@ -321,7 +322,7 @@ Key Columns:
 
 Table: solana.price.ez_asset_metadata
 Purpose: Provides metadata for tokens on Solana
-Key Columns:
+Columns:
 - asset_id
 - token_address
 - symbol
@@ -338,7 +339,7 @@ Schema: defi
 Table: solana.defi.ez_dex_swaps
 Purpose: Records DEX swaps
 
-Key Columns:
+Columns:
 - swap_program: Name of DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix')
 - block_id
 - block_timestamp
@@ -370,7 +371,7 @@ Notes:
 
 Table: solana.defi.fact_swaps
 Purpose: Records DEX swaps
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -385,7 +386,7 @@ Key Columns:
 
 Table: solana.defi.ez_liquidity_pool_actions
 Purpose: Records liquidity pool actions
-Key Columns:
+Columns:
 - block_timestamp
 - tx_id
 - index: Location of the instruction (event) within a transaction
@@ -416,7 +417,7 @@ Key Columns:
 
 Table: solana.defi.fact_liquidity_pool_actions
 Purpose: Records liquidity pool actions
-Key Columns:
+Columns:
 - block_id
 - block_timestamp
 - tx_id
@@ -431,7 +432,7 @@ Key Columns:
 
 Table: solana.defi.fact_bridge_activity
 Purpose: Records bridge activity
-Key Columns:
+Columns:
 - block_id
 - block_timestamp
 - tx_id
@@ -447,7 +448,7 @@ Key Columns:
 
 Table: solana.defi.fact_token_burn_actions
 Purpose: Records token burns
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -465,7 +466,7 @@ Key Columns:
 
 Table: solana.defi.fact_token_mint_actions
 Purpose: Records token mints
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -484,7 +485,7 @@ Key Columns:
 
 Table: solana.defi.fact_swaps_jupiter_inner
 Purpose: Records Jupiter DEX swaps
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -504,7 +505,7 @@ Key Columns:
 Table: solana.defi.fact_swaps_jupiter_summary
 IMPORTANT: Use this table to get Jupiter DEX swaps, the solana.defi.ez_dex_swaps table only shows the underlying swaps, but not the fact that Jupiter router was used
 Purpose: Records Jupiter DEX swaps
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -526,7 +527,7 @@ Key Columns:
 
 Table: solana.defi.fact_stake_pool_actions
 Purpose: Records stake pool actions (ONLY for the $SOL native token)
-Key Columns:
+Columns:
 - stake_pool_name (e.g. `jito`, `jpool`, `blazestake`, `daopool`, `marinade`)
 - tx_id
 - block_timestamp
@@ -550,7 +551,7 @@ IMPORTANT: All `solana.gov` tables only include staking $SOL on validators; not 
 
 Table: solana.gov.ez_staking_lp_actions
 Purpose: Records staking actions for Solana validators.
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -579,7 +580,7 @@ Key Columns:
 
 Table: solana.gov.fact_block_production
 Purpose: Records block production
-Key Columns:
+Columns:
 - epoch
 - node_pubkey
 - num_leader_slots: Number of slots the validator was the leader for in the epoch
@@ -590,7 +591,7 @@ Key Columns:
 
 Table: solana.gov.fact_gauges_creates
 Purpose: Records gauge creation
-Key Columns:
+Columns:
 - program_name
 - block_timestamp
 - block_id
@@ -604,7 +605,7 @@ Key Columns:
 
 Table: solana.gov.fact_gauges_votes
 Purpose: Records gauge votes
-Key Columns:
+Columns:
 - program_name
 - block_timestamp
 - block_id
@@ -619,7 +620,7 @@ Key Columns:
 
 Table: solana.gov.fact_gov_actions
 Purpose: Records governance actions
-Key Columns:
+Columns:
 - program_name
 - block_timestamp
 - block_id
@@ -635,7 +636,7 @@ Key Columns:
 
 Table: solana.gov.fact_proposal_creation
 Purpose: Records proposal creation
-Key Columns:
+Columns:
 - governance_platform: platform used for governance space
 - program_name (e.g. `GovER5Lthms3bLBqWub97yVrMmEogzX7xNjdXpPPCVZw`)
 - block_timestamp
@@ -652,7 +653,7 @@ Key Columns:
 
 Table: solana.gov.fact_proposal_votes
 Purpose: Records proposal votes
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - tx_id
@@ -667,7 +668,7 @@ Key Columns:
 
 Table: solana.gov.fact_rewards_fee
 Purpose: Records fee rewards
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - dim_epoch_id
@@ -679,7 +680,7 @@ Key Columns:
 
 Table: solana.gov.fact_rewards_rent
 Purpose: Records rent rewards
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - vote_pubkey: Account address of voter
@@ -691,7 +692,7 @@ Key Columns:
 
 Table: solana.gov.fact_rewards_staking
 Purpose: Records staking rewards
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - stake_pubkey: Address of stake account
@@ -703,7 +704,7 @@ Key Columns:
 
 Table: solana.gov.fact_rewards_voting
 Purpose: Records voting rewards
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - vote_pubkey
@@ -715,7 +716,7 @@ Key Columns:
 
 Table: solana.gov.fact_validators
 Purpose: Records validators
-Key Columns:
+Columns:
 - epoch: The epoch when data was recorded
 - node_pubkey
 - vote_pubkey
@@ -740,7 +741,7 @@ Key Columns:
 
 Table: solana.gov.fact_votes_agg_block
 Purpose: Records vote aggregation by block
-Key Columns:
+Columns:
 - block_timestamp
 - block_id
 - num_votes: The number of vote events that occurred within the block
@@ -748,7 +749,7 @@ Key Columns:
 
 Table: solana.gov.fact_vote_accounts
 Purpose: Records vote accounts
-Key Columns:
+Columns:
 - epoch
 - vote_pubkey
 - node_pubkey
@@ -768,7 +769,7 @@ Key Columns:
 
 Table: solana.gov.dim_epoch
 Purpose: Records epochs
-Key Columns:
+Columns:
 - dim_epoch_id
 - epoch: A period of time consisting of 432,000 blocks, which represents a higher-level timekeeping unit within the Solana network
 - start_block: The first block within an Epoch
@@ -777,7 +778,7 @@ Key Columns:
 
 Table: solana.gov.fact_stake_accounts
 Purpose: Records stake accounts
-Key Columns:
+Columns:
 - epoch
 - stake_pubkey
 - vote_pubkey
@@ -803,7 +804,7 @@ Schema: stats
 
 Table: solana.stats.ez_core_metrics_hourly
 Purpose: Records core metrics
-Key Columns:
+Columns:
 - hour
 - active_addresses
 - new_addresses
@@ -827,7 +828,11 @@ Schema: crosschain
 
 Table: crosschain.core.dim_dates
 Purpose: A reference table for dates to be used in joins
-Key Columns:
+
+Notes:
+- This table goes far into the future, so you MUST filter through the current date (e.g. `and date_day <= CURRENT_DATE()`) to make sure there are no extra rows into the future.
+
+Columns:
 - date_day
 - prior_date_day
 - next_date_day
@@ -867,3 +872,22 @@ The easiest and most efficient way to identify and parse the correct transaction
 ================================================================================
 
 Make sure the query includes ALL desired transaction types and excludes all others.
+
+
+SELECT t.block_timestamp
+, t.tx_id
+, e.instruction
+, e.inner_instruction
+, sum(case when t.tx_from = e.signers[0] then t.amount else 0 end) as amount_sent
+, sum(case when t.tx_to = e.signers[0] then t.amount else 0 end) as amount_received
+FROM solana.core.fact_events e
+join solana.core.fact_transfers t
+  on t.block_timestamp = e.block_timestamp
+  and t.tx_id = e.tx_id
+WHERE e.block_timestamp >= current_date - 1
+  and t.block_timestamp >= current_date - 1
+  AND e.succeeded = TRUE
+  AND e.program_id = '2gWf5xLAzZaKX9tQj9vuXsaxTWtzTZDFRn21J3zjNVgu'
+  and t.mint = '4LLbsb5ReP3yEtYzmXewyGjcir5uXtKFURtaEUVC2AHs'
+group by 1, 2, 3, 4
+

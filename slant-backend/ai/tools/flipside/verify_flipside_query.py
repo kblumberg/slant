@@ -14,7 +14,6 @@ from ai.tools.utils.utils import print_tool_starting, get_sql_notes, state_to_re
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 
 def verify_flipside_query(state: JobState) -> JobState:
-    return {'verified_flipside_sql_query': '', 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
     if state["flipside_sql_error"] or state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS:
         return {}
 
@@ -31,7 +30,15 @@ def verify_flipside_query(state: JobState) -> JobState:
             error_text = '**Error**:\n' + c if c else ''
             previous_sql_queries += f'**Query:**\n{a}\n{results_text}\n{error_text}\n\n'
 
-    if len(state['flipside_sql_query_result']) == 0:
+    numerical_columns = state['flipside_sql_query_result'].select_dtypes(include=['number']).columns.tolist()
+    # cur = pd.DataFrame([{'category': 'a', 'num': 1}, {'category': 'b', 'num': 2}])
+    # numerical_columns = cur.select_dtypes(include=['number']).columns.tolist()
+    tot = 0
+    for col in numerical_columns:
+        if not col in ['timestamp']:
+            tot += state['flipside_sql_query_result'][col].sum()
+    log(f'tot: {tot}')
+    if len(state['flipside_sql_query_result']) == 0 or tot == 0:
         log(f"No results from flipside query")
         prompt = f"""
         You are an expert in writing **correct, efficient, and idiomatic** Snowflake SQL queries for **blockchain analytics** using the **Flipside Crypto** database.
@@ -52,7 +59,7 @@ def verify_flipside_query(state: JobState) -> JobState:
 
         ---
 
-        {state_to_reference_materials(state, use_summary=True)}
+        {state_to_reference_materials(state)}
 
         ---
 
@@ -100,6 +107,7 @@ def verify_flipside_query(state: JobState) -> JobState:
         # -- - Consider joining with `dim_labels` to find wallet tags
 
     else:
+        return {'verified_flipside_sql_query': '', 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
         prompt = f"""
         You are an expert in writing **correct, efficient, and idiomatic** Snowflake SQL queries for **blockchain analytics** using the **Flipside Crypto** database.
 

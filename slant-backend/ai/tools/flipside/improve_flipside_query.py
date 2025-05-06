@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 from ai.tools.utils.utils import state_to_reference_materials
 
 def improve_flipside_query(state: JobState) -> JobState:
-    reference_materials = state_to_reference_materials(state, use_summary=True)
+    reference_materials = state_to_reference_materials(state)
 
     prompt = f"""
     You are an expert in writing **accurate, efficient, and idiomatic** Snowflake SQL queries for **blockchain analytics** using the **Flipside Crypto** database.

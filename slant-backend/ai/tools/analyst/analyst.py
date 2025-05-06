@@ -37,6 +37,12 @@ from ai.tools.utils.tool_selector import tool_selector
 from ai.tools.utils.tool_executor import tool_executor
 from ai.tools.analyst.context_summarizer import context_summarizer
 from ai.tools.analyst.extract_transactions import extract_transactions
+from ai.tools.analyst.web_search_documentation import web_search_documentation
+from ai.tools.twitter.summarize_tweets import summarize_tweets
+from ai.tools.web.summarize_web_search import summarize_web_search
+from ai.tools.flipside.refine_flipside_query_prompt import refine_flipside_query_prompt
+from ai.tools.analyst.extract_program_ids import extract_program_ids
+from ai.tools.analyst.determine_approach import determine_approach
 
 def follow_up_questions_logic(state: JobState) -> str:
     log(f'follow_up_questions_logic:')
@@ -115,21 +121,18 @@ def get_upcoming_tool(state: JobState):
     return 'Unknown tool'
 
 def join_tools_gate_3(state: JobState) -> str:
-    # Check if all upcoming tools have been completed
     remaining_tools = list(set(state['upcoming_tools']) - set(state['completed_tools']))
-    
-    # log(f'Remaining tools: {remaining_tools}')
-    # log(f'Upcoming tools: {sorted(list(set(state["upcoming_tools"])))}')
-    # log(f'Completed tools: {sorted(list(set(state["completed_tools"])))}')
-    
-    # If no remaining tools, proceed to RespondWithContext
     if len(remaining_tools) == 0:
-        # log('All tools completed. Moving to RespondWithContext.')
-        return "AskFollowUpQuestions"
-    
-    # Otherwise, continue waiting
-    # log('Still waiting for tools to complete.')
+        return "JoinTools4"
     return "JoinTools3"
+
+def join_tools_gate_5(state: JobState) -> str:
+    upcoming_tools = ['SummarizeWebSearch','SummarizeTweets']
+    completed_tools = sorted(list(set(state['completed_tools'])))
+    remaining_tools = list(set(upcoming_tools) - set(completed_tools))
+    if len(remaining_tools) == 0:
+        return "AskFollowUpQuestions"
+    return "JoinTools5"
 
 def join_tools_gate_1(state: JobState) -> str:
     remaining_tools = set(['ParseAnalyses','CreateAnalysisDescription']) - set(state['completed_tools'])
@@ -183,6 +186,9 @@ def make_graph():
     builder = StateGraph(JobState)
 
     builder.add_node("ParseAnalyses", wrap_node(parse_analyses))
+    builder.add_node("SummarizeTweets", wrap_node(summarize_tweets))
+    builder.add_node("SummarizeWebSearch", wrap_node(summarize_web_search))
+    builder.add_node("WebSearchDocumentation", wrap_node(web_search_documentation))
     builder.add_node("WebSearch", wrap_node(web_search))
     builder.add_node("RagSearchTweets", wrap_node(rag_search_tweets))
     builder.add_node("LoadExampleFlipsideQueries", wrap_node(load_example_flipside_queries))
@@ -197,24 +203,31 @@ def make_graph():
     builder.add_node("RespondWithContext", wrap_node(respond_with_context))
     builder.add_node("PreQueryClarifications", wrap_node(pre_query_clarifications))
     builder.add_node("RagSearchProjects", wrap_node(rag_search_projects))
-    # builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(write_flipside_query_or_investigate_data))
+    builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(write_flipside_query_or_investigate_data))
     builder.add_node("WriteFlipsideQuery", wrap_node(write_flipside_query))
     builder.add_node("FixFlipsideQuery", wrap_node(fix_flipside_query))
     builder.add_node("ExecuteFlipsideQuery", wrap_node(execute_flipside_query))
     builder.add_node("VerifyFlipsideQuery", wrap_node(verify_flipside_query))
-    builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(lambda state: {}))
+    builder.add_node("ExtractProgramIds", wrap_node(extract_program_ids))
+    builder.add_node("DetermineApproach", wrap_node(determine_approach))
+    # builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(lambda state: {}))
     # builder.add_node("VerifyFlipsideQuery", wrap_node(lambda state: {}))
     builder.add_node("ImproveFlipsideQuery", wrap_node(improve_flipside_query))
     builder.add_node("FormatForHighcharts", wrap_node(format_for_highcharts))
     builder.add_node("ContextSummarizer", wrap_node(context_summarizer))
     builder.add_node("ExtractTransactions", wrap_node(extract_transactions))
-    builder.add_node("JoinTools3", wrap_node(lambda state: {}, name="JoinTools3"))
+    builder.add_node("RefineFlipsideQueryPrompt", wrap_node(refine_flipside_query_prompt))
     builder.add_node("JoinTools1", wrap_node(lambda state: {}, name="JoinTools1"))
     builder.add_node("JoinTools2", wrap_node(lambda state: {}, name="JoinTools2"))
+    builder.add_node("JoinTools3", wrap_node(lambda state: {}, name="JoinTools3"))
+    builder.add_node("JoinTools4", wrap_node(lambda state: {}, name="JoinTools4"))
+    builder.add_node("JoinTools5", wrap_node(lambda state: {}, name="JoinTools5"))
 
     builder.add_edge(START, "ParseAnalyses")
     builder.add_edge(START, "CreateAnalysisDescription")
     builder.add_edge("JoinTools1", "JoinTools2")
+
+
 
     tool_nodes = [
         "ParseAnalyses",
@@ -236,17 +249,26 @@ def make_graph():
     tool_nodes = [
         "RagSearchTweets",
         "RagSearchProjects",
-        "LoadExampleFlipsideQueries",
+        "RefineFlipsideQueryPrompt",
         "WebSearch",
         "ExtractTransactions",
         "CreateAnalysisDescription",
     ]
     for node in tool_nodes:
         builder.add_edge(node, "JoinTools3")
+    builder.add_edge("LoadExampleFlipsideQueries", "RefineFlipsideQueryPrompt")
 
     builder.add_conditional_edges("JoinTools1", join_tools_gate_1)
     builder.add_conditional_edges("JoinTools3", join_tools_gate_3)
 
+    tool_nodes = [
+        "SummarizeWebSearch",
+        "SummarizeTweets",
+    ]
+    for node in tool_nodes:
+        builder.add_edge("JoinTools4", node)
+        builder.add_edge(node, "JoinTools5")
+    builder.add_conditional_edges("JoinTools5", join_tools_gate_5)
     builder.add_conditional_edges("AskFollowUpQuestions", follow_up_questions_logic)
     builder.add_conditional_edges("ContextSummarizer", context_summarizer_logic)
     # builder.add_edge("AskFollowUpQuestions", "CreateAnalysisDescription")
@@ -254,7 +276,9 @@ def make_graph():
     builder.add_edge("ToolSelector", "ToolExecutor")
     builder.add_edge("ToolExecutor", "AskFollowUpQuestions")
     # builder.add_edge("AskFollowUpQuestions", "WriteFlipsideQueryOrInvestigateData")
-    builder.add_edge("WriteFlipsideQueryOrInvestigateData", "WriteFlipsideQuery")
+    builder.add_edge("WriteFlipsideQueryOrInvestigateData", "DetermineApproach")
+    builder.add_edge("DetermineApproach", "ExtractProgramIds")
+    builder.add_edge("ExtractProgramIds", "WriteFlipsideQuery")
     # builder.add_edge("WriteFlipsideQuery", "ImproveFlipsideQuery")
     builder.add_edge("WriteFlipsideQuery", "ExecuteFlipsideQuery")
     # builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
@@ -274,6 +298,9 @@ def make_graph():
 
     return builder.compile()
 
+def get_values_from_prev_state(prev_state: pd.DataFrame, key: str, default_value: any):
+    return prev_state[key].values[0] if len(prev_state) and key in prev_state.columns else default_value
+
 def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     # query = 'how many sharky nft loans have been taken in the last 5 days?'
     log(f'ask_analyst: {user_prompt}')
@@ -292,6 +319,20 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     user_message_id = str(uuid.uuid4())
     memory.save_user_message(user_message_id, user_prompt)
     memory.load_messages()
+    prev_state = memory.load_previous_state()
+    log('prev_state')
+    log(prev_state)
+    flipside_sql_query_result = get_values_from_prev_state(prev_state, 'flipside_sql_query_result', [])
+    flipside_sql_query_result = json.loads(str(flipside_sql_query_result))
+    log('flipside_sql_query_result')
+    log(flipside_sql_query_result)
+    if len(flipside_sql_query_result):
+        flipside_sql_query_result = pd.DataFrame(flipside_sql_query_result)
+        log('flipside_sql_query_result')
+        log(flipside_sql_query_result)
+    else:
+        flipside_sql_query_result = pd.DataFrame()
+
     # log('memory')
     # log(memory.messages)
     graph = make_graph()
@@ -318,6 +359,9 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     schema_path = os.path.join(current_dir, "..", "..", "context", "flipside", "schema.sql")
     with open(schema_path, "r") as f:
         schema = f.read()
+
+    curated_tables = ['solana.nft.ez_nft_sales','solana.nft.dim_nft_metadata','solana.nft.fact_nft_mints','solana.nft.fact_nft_mint_actions','solana.nft.fact_nft_burn_actions','solana.price.ez_prices_hourly','solana.price.ez_asset_metadata','solana.defi.ez_dex_swaps','solana.defi.ez_liquidity_pool_actions','solana.defi.fact_bridge_activity','solana.defi.fact_token_burn_actions','solana.defi.fact_token_mint_actions','solana.defi.fact_swaps_jupiter_inner','solana.defi.fact_stake_pool_actions','solana.gov.ez_staking_lp_actions','solana.gov.fact_block_production','solana.gov.fact_gauges_creates','solana.gov.fact_gauges_votes','solana.gov.fact_gov_actions','solana.gov.fact_proposal_creation','solana.gov.fact_proposal_votes','solana.gov.fact_rewards_fee','solana.gov.fact_rewards_rent','solana.gov.fact_rewards_staking','solana.gov.fact_rewards_voting','solana.gov.fact_validators','solana.gov.fact_votes_agg_block','solana.gov.fact_vote_accounts','solana.gov.dim_epoch','solana.gov.fact_stake_accounts','solana.stats.ez_core_metrics_hourly','crosschain.core.dim_dates','solana.core.dim_labels','solana.core.ez_signers']
+    raw_tables = ['solana.core.ez_events_decoded','solana.core.fact_transactions','solana.core.fact_transfers','solana.core.fact_decoded_instructions','solana.core.fact_events','solana.core.fact_events_inner','solana.core.fact_sol_balances','solana.core.fact_token_account_owners','solana.core.fact_token_balances']
 
 
     state = JobState(
@@ -356,13 +400,18 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , memory=memory
         , additional_contexts=[]
         , completed_tools=[]
-        , upcoming_tools=['RagSearchTweets','RagSearchProjects','LoadExampleFlipsideQueries','WebSearch']
+        , upcoming_tools=['RagSearchTweets','RagSearchProjects','LoadExampleFlipsideQueries','WebSearch','RefineFlipsideQueryPrompt','ExtractTransactions','CreateAnalysisDescription']
         , flipside_tables=[]
-        , flipside_example_queries=pd.DataFrame()
-        , flipside_sql_query_result=pd.DataFrame()
-        , web_search_results=''
+        , flipside_example_queries=[]
+        , flipside_sql_query_result=flipside_sql_query_result
+        , web_search_results= get_values_from_prev_state(prev_state, 'web_search_results', '')
         , tavily_client=tavily_client
-        , context_summary=''
+        , context_summary= get_values_from_prev_state(prev_state, 'context_summary', '')
+        , tweets_summary= get_values_from_prev_state(prev_state, 'tweets_summary', '')
+        , web_search_summary= get_values_from_prev_state(prev_state, 'web_search_summary', '')
+        , curated_tables=curated_tables
+        , raw_tables=raw_tables
+        , approach=''
     )
     memory.save_conversation(state)
     message = {
@@ -390,8 +439,11 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         flipside_sql_query_result = chunk.get('flipside_sql_query_result')
         response['highcharts_datas'] = []
         if len(flipside_sql_query_result):
-            log('flipside_sql_query_result.columns')
-            log(flipside_sql_query_result.columns)
+            if len(flipside_sql_query_result):
+                log('flipside_sql_query_result 426')
+                log(flipside_sql_query_result)
+                log('flipside_sql_query_result.columns')
+                log(flipside_sql_query_result.columns)
             log(f'len(highcharts_configs): {len(highcharts_configs)}')
             x_col = 'timestamp' if 'timestamp' in flipside_sql_query_result.columns else 'category' if 'category' in flipside_sql_query_result.columns else ''
             # log(f'x_col: {x_col}')
@@ -424,7 +476,8 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
                         log('series')
                         log(series)
                         cur = flipside_sql_query_result.copy()
-                        cur['category_clean'] = cur['category'].apply(lambda x: x.lower().strip())
+                        if 'category' in cur.columns:
+                            cur['category_clean'] = cur['category'].apply(lambda x: x.lower().strip())
                         categories = cur['category'].unique().tolist() if 'category' in cur.columns else []
                         log(f'categories: {categories}.')
                         column = series['column']

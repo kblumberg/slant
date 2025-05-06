@@ -19,7 +19,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     asked_followups_before = len(state['memory'].message_df) > 1
     previous_messages = ''
 
-    if len(state['messages']) > 0:
+    if len(state['messages']) > 1:
         messages = parse_messages(state)
         previous_messages = f"""
         **PREVIOUS MESSAGES**:
@@ -169,7 +169,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     # log(formatted_prompt)
     response = state['reasoning_llm'].invoke(formatted_prompt).content
     follow_up_questions = parse_json_from_llm(response, state['llm'])
-    log('ask_follow_up_questions')
+    log(f'ask_follow_up_questions (message #{len(state["messages"])})')
     log(follow_up_questions)
     time_taken = round(time.time() - start_time, 1)
     # log(f'ask_follow_up_questions finished in {time_taken} seconds')

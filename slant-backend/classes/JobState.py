@@ -11,6 +11,7 @@ from classes.Analysis import Analysis
 from utils.db import pg_upload_data
 from tavily import TavilyClient
 from classes.Transaction import Transaction
+
 def append(a, b):
     return a + b
 
@@ -57,6 +58,11 @@ class JobState(TypedDict):
     web_search_results: str
     tavily_client: TavilyClient
     context_summary: str
+    tweets_summary: str
+    web_search_summary: str
+    curated_tables: list[str]
+    raw_tables: list[str]
+    approach: str
 
     def to_dict(self):
         return {
@@ -91,7 +97,12 @@ class JobState(TypedDict):
             'flipside_sql_query_result': self.flipside_sql_query_result,
             'flipside_sql_attempts': self.flipside_sql_attempts,
             'web_search_results': self.web_search_results,
-            'context_summary': self.context_summary
+            'context_summary': self.context_summary,
+            'tweets_summary': self.tweets_summary,
+            'web_search_summary': self.web_search_summary,
+            'curated_tables': self.curated_tables,
+            'raw_tables': self.raw_tables,
+            'approach': self.approach
         }
 
     def save_context(self, inputs: dict, outputs: dict):

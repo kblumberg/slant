@@ -81,6 +81,7 @@ interface ChatInterfaceProps {
 const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [inputText, setInputText] = useState('');
+	const [inputHeight, setInputHeight] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
 	const [status, setStatus] = useState('Analyzing query');
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -88,6 +89,23 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 	};
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+
+	const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setInputText(e.target.value);
+		if (textareaRef.current) {
+		  textareaRef.current.style.height = 'auto'; // reset height
+		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; // set to scrollHeight
+		  setInputHeight(textareaRef.current.scrollHeight);
+		}
+	  };
+	
+	  useEffect(() => {
+		if (textareaRef.current) {
+		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+		}
+	  }, []);
 
 	useEffect(() => {
 		scrollToBottom();
@@ -384,7 +402,10 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 					<div className="relative flex space-x-4">
 					<div className="bg-white flex w-full h-full">
 					{inputText === '' ? (
-						<div className="transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute top-12 left-8 max-w-3/4 z-1">
+						<div
+							className={`transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute bottom-[20px] left-8 max-w-3/4 z-1`}
+							// style={{ top: `${inputHeight - 90}px` }}
+						>
 							<ul className="list-disc list-inside">
 								<li>Include example transaction ids with description</li>
 								<li>Any relevant program ids, addresses, etc</li>
@@ -392,17 +413,21 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 							</ul>
 						</div>
 						) : (
-							<div className="transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute top-12 left-4 max-w-3/4 z-1">
+							<div
+								className="transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute bottom-[65px] left-4 max-w-3/4 z-1"
+								// style={{ top: `${inputHeight - 90}px` }}
+							>
 								Provide as many details as possible for best results
 							</div>
 						)
 					}
 					<textarea
+						ref={textareaRef}
 						value={inputText}
-						onChange={(e) => setInputText(e.target.value)}
+						onChange={handleChange}
 						onKeyPress={handleKeyPress}
 						placeholder="I can research any topic on Solana and provide in-depth data analysis. For best results:"
-						className="z-1 placeholder-gray-600 bg-transparent min-h-36 flex-1 rounded resize-none border p-4 focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent"
+						className={`z-1 placeholder-gray-600 bg-transparent min-h-36 flex-1 rounded resize-none border p-4 pb-[${100}px] focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent`}
 						rows={1}
 					/>
 					</div>

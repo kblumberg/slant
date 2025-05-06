@@ -74,11 +74,12 @@ def get_sql_notes():
         - Tokens are typically filtered by `token_address` or `mint` or `___mint` in the schema.
         - Programs are typically filtered by `program_id` in the schema.
         - Do NOT use any placeholders. Only use real mints, addresses, program ids, dates, etc.
-        - Do NOT use any columns that are not listed in the schema.
         - Make sure to use LIMIT if you are only looking for a specific number of results.
         - Project program_ids can change over time. You may need to include multiple program ids in the WHERE clause to get the correct results.
         - All timestamps are in UTC; default to that unless the user explicitly mentions a different timezone.
         - To do time comparisons, use `dateadd` and `current_timestamp()` or `current_date()` like so: `and block_timestamp >= dateadd(hour, -12, current_timestamp())`
+        - If there is a "launch date" you are referencing, its usually a good idea to give a 2 day buffer to make sure you get all the data. (e.g. `and block_timestamp >= dateadd(day, -2, <launch_date>)`)
+        - ONLY use the columns that are listed in the schema.
     """
 
 def get_other_info():
@@ -96,10 +97,10 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
         additional_context = additional_context + '**RELATED INFORMATION**: \n' + 'These are just recommendations, not requirements. Factor other information into your analysis, but use this if it is helpful:\n\n' + state['context_summary']
     if preface:
         additional_context = additional_context + preface + '\n\n'
-    if len(state['tweets']) > 0 and 'tweets' not in exclude_keys:
-        additional_context = additional_context + '**TWEETS**: \n' + '\n'.join([ str(tweet.text) for tweet in state['tweets']])
-    if len(state['web_search_results']) > 0 and 'web_search_results' not in exclude_keys:
-        additional_context = additional_context + '**WEB SEARCH RESULTS**: \n' + state['web_search_results']
+    if len(state['tweets_summary']) > 0 and 'tweets_summary' not in exclude_keys:
+        additional_context = additional_context + '**SUMMARY OF TWEETS**: \n' + state['tweets_summary']
+    if len(state['web_search_summary']) > 0 and 'web_search_summary' not in exclude_keys:
+        additional_context = additional_context + '**SUMMARY OF WEB SEARCH RESULTS**: \n' + state['web_search_summary']
     if len(state['projects']) > 0 and 'projects' not in exclude_keys:
         additional_context = additional_context + '**PROJECTS**: \n' + '\n'.join([ str(project.name) + ': ' + str(project.description) for project in state['projects']])
     if len(state['flipside_example_queries']) > 0 and 'flipside_example_queries' not in exclude_keys:
@@ -163,7 +164,12 @@ def rag_search_tweets(question: str) -> str:
 
 
 def parse_tx(tx_id: str):
-    tx_id = '123hQt9b7bwfGDhfSHBmd5GsDcvs26GdN8x5ch1b8GMjL3S61XiFB4rwTjcKUFS6z9QAUGf54pdV7uR7utVf9M2a'
+    if len(tx_id) != 88:
+        return {
+            'accountKeys': [],
+            'instructions': [],
+            'logMessages': []
+        }
     client = Client(SOLANA_RPC_URL)
     sig = Signature.from_string(tx_id)
     tx_data = client.get_transaction(sig, encoding="jsonParsed", max_supported_transaction_version=0).to_json()

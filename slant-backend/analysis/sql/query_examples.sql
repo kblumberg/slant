@@ -3,7 +3,7 @@ WITH t0 AS (
   , (state ->> 'flipside_example_queries')::jsonb as flipside_example_queries
   FROM state_snapshots
   order by timestamp desc
-  LIMIT 5
+  LIMIT 1
 )
 , t1 as (
   select *
@@ -30,5 +30,5 @@ select user_message_id
 , user_name
 , updated_at
 from t2
-where query_text like '%DEkqHyPN7GMRJ5cArtQFAWefqbZb33Hyf6s5iCwjEonT%'
+-- where query_text like '%DEkqHyPN7GMRJ5cArtQFAWefqbZb33Hyf6s5iCwjEonT%'
 order by timestamp desc, user_message_id

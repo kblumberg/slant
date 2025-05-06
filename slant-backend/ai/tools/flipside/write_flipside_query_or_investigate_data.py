@@ -27,9 +27,11 @@ def write_flipside_query_or_investigate_data(state: JobState) -> JobState:
 
         ## Task
 
-        Determine whether you have enough information to write a valid SQL query to answer the following user question. Do you know what SQL query to write, what tables to use, and what filters to apply? Do you need to investigate the data further to confirm your understanding or confirm that the data is available?
+        Determine whether you have enough information to write a valid SQL query to answer the following user question. Do you know what SQL query to write, what tables to use, and what filters to apply? Do you need to investigate the data further to validate your approach or confirm that the data is available?
 
-        If you do not have enough information, describe what tables you would need to query and examine to get the information you need.
+        If you are 95%+ confident that you know what SQL query to write, what tables to use, and what filters to apply, respond with a "YES". Do not include any other text.
+
+        If you are NOT confident that you have enough information, or if you need to investigate the data further to validate your approach or confirm that the data is available, respond with a "NO". Do not include any other text.
 
         ### ❓ Question:
         Here is the user question that you are trying to answer:
@@ -42,18 +44,11 @@ def write_flipside_query_or_investigate_data(state: JobState) -> JobState:
         ---
 
         ## ✍️ Output
-
-        If you have enough information and are 90%+ confident that you know what SQL query to write, what tables to use, and what filters to apply, respond with a "YES". Do not include any other text.
-
-        If you do not have enough information, respond with "NO". Do not include any other text.
-
+        "YES" or "NO"
     """
 
     response = state['reasoning_llm'].invoke(prompt).content
 
-    # Remove SQL code block markers if present
-    time_taken = round(time.time() - start_time, 1)
-    # log(f'write_flipside_query_or_investigate_data finished in {time_taken} seconds')
     log(f"write_flipside_query_or_investigate_data response:")
     log(response)
     return {'write_flipside_query_or_investigate_data': response, 'completed_tools': ["WriteFlipsideQueryOrInvestigateData"]}

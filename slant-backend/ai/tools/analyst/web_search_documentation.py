@@ -1,10 +1,12 @@
 import time
 from utils.utils import log
 from classes.JobState import JobState
-from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 from ai.tools.web.web_crawl import web_crawl
-from utils.db import pg_load_data, pg_upload_data, pc_upload_data
+from utils.db import pg_load_data, pg_upsert_data, pc_upload_data
 from utils.utils import clean_project_tag
+from sqlalchemy import create_engine, MetaData, Table, Column, BigInteger, Text, Integer
+from constants.keys import POSTGRES_ENGINE
+import pandas as pd
 
 def web_search_documentation(state: JobState) -> JobState:
 
@@ -40,8 +42,24 @@ def web_search_documentation(state: JobState) -> JobState:
     # url TEXT NOT NULL,
     # text TEXT NOT NULL
 
-    pg_upload_data(all_results_df, 'web_searches', if_exists='append')
+    # Upload tweets to postgres, replacing existing records with same id
+    engine = create_engine(POSTGRES_ENGINE)
+    metadata = MetaData()
+    table = Table(
+        "web_searches", metadata,
+        Column("url", Text, primary_key=True),
+        Column("timestamp", Integer),
+        Column("project", Text),
+        Column("project_id", BigInteger),
+        Column("user_message_id", Text),
+        Column("search_query", Text),
+        Column("base_url", Text),
+        Column("text", Text)
+    )
+    pg_upsert_data(all_results_df, table, engine, ['url'])
     all_results_df['text'] = all_results_df['text'].apply(lambda x: x[:35000])
     all_results_df['embedding'] = all_results_df.apply(lambda x: x.project + ' ' + x.text, axis=1)
+    all_results_df['id'] = all_results_df.url
+    all_results_df['project_id'] = all_results_df.project_id.fillna(0).astype(int)
     pc_upload_data(all_results_df, 'embedding', ['project', 'project_id', 'search_query', 'base_url', 'url', 'text'], batch_size=100, index_name='slant', namespace='web_searches')
     return {'pre_query_clarifications': response, 'completed_tools': ["PreQueryClarifications"]}

@@ -7,6 +7,8 @@ from constants.db import FLIPSIDE_QUERIES_RAG_COLS
 from constants.constant import SLACK_CHANNEL_ID, KELLEN_SLACK_ID
 from utils.db import pg_load_data, pg_upload_data, pc_upload_data, pg_upsert_data, pg_upsert_flipside_dashboards, pg_upsert_flipside_dashboards_queries
 from utils.flipside import scrape_new_flipside_queries, upsert_flipside_queries, scrape_new_flipside_dashboards, generate_summary_prompt_for_fs_query, summarize_query, generate_query_text, extract_project_tags_from_query
+from db.add_flipside_table_names import parse_tables_from_query
+
 from langchain_openai import ChatOpenAI
 
 def update_flipside_data():
@@ -92,6 +94,8 @@ def update_flipside_data():
             pc_data[c] = (pd.to_datetime(pc_data[c]).astype('int64') // 1e9).astype(int)
         pc_data.loc[pc_data.project_tags.isnull(), 'project_tags'] = pc_data.project_tags.apply(lambda x: [])
         pc_data['dashboard_id'] = pc_data['dashboard_id'].fillna('')
+        pc_data['tables'] = pc_data['statement'].apply(parse_tables_from_query)
+        pc_data['tokens'] = pc_data['id'].apply(lambda x: [])
 
         pc_upload_data(pc_data, 'text', FLIPSIDE_QUERIES_RAG_COLS, batch_size=100, index_name='slant', namespace='flipside_queries')
 
