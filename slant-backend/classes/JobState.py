@@ -63,6 +63,13 @@ class JobState(TypedDict):
     curated_tables: list[str]
     raw_tables: list[str]
     approach: str
+    start_timestamp: str
+    program_ids: list[str]
+    use_decoded_flipside_tables: bool
+    flipside_determine_approach: str
+    eta: int
+    additional_context_summary: str
+    flipside_subset_example_queries: list[int]
 
     def to_dict(self):
         return {
@@ -102,7 +109,14 @@ class JobState(TypedDict):
             'web_search_summary': self.web_search_summary,
             'curated_tables': self.curated_tables,
             'raw_tables': self.raw_tables,
-            'approach': self.approach
+            'approach': self.approach,
+            'start_timestamp': self.start_timestamp,
+            'program_ids': self.program_ids,
+            'use_decoded_flipside_tables': self.use_decoded_flipside_tables,
+            'flipside_determine_approach': self.flipside_determine_approach,
+            'additional_context_summary': self.additional_context_summary,
+            'eta': self.eta,
+            'flipside_subset_example_queries': self.flipside_subset_example_queries
         }
 
     def save_context(self, inputs: dict, outputs: dict):

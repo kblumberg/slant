@@ -5,7 +5,7 @@ from classes.Analysis import Analysis
 from utils.utils import clean_project_tag
 from ai.tools.utils.utils import parse_messages
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
-
+from ai.tools.utils.utils import state_to_reference_materials
 def determine_approach(state: JobState) -> JobState:
     tokens = list(set([token for x in state['analyses'] for token in x.tokens]))
     projects = list(set([ x.project for x in state['analyses']]))
@@ -15,6 +15,7 @@ def determine_approach(state: JobState) -> JobState:
     web_search_summary=state['web_search_summary']
     curated_tables = '\n'.join(state['curated_tables'])
     raw_tables = '\n'.join(state['raw_tables'])
+    reference_materials = state_to_reference_materials(state)
     prompt = f"""
     You are an expert crypto data scientist. Your task is to determine the best approach to analyze the user's analysis goal.
 

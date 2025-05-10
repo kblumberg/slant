@@ -5,7 +5,7 @@ select *
 from solana.information_schema.columns
 where table_schema in ('CORE','DEFI','GOV','NFT','PRICE','STATS')
 """
-df, error = fs_load_data(query)
+df, error, load_time = fs_load_data(query)
 
 df['table'] = df.table_catalog + '.' + df.table_schema + '.' + df.table_name
 tables = sorted(df.table.unique())
@@ -59,7 +59,7 @@ for table in tables:
             order by 2 desc
             limit 10
         """
-        result, error = fs_load_data(query)
+        result, error, load_time = fs_load_data(query)
         result.to_csv(f'~/Downloads/fs_{table}_{c}.csv', index=False)
         print(result.head(3))
         print('-'*100)

@@ -5,38 +5,21 @@ from classes.Analysis import Analysis
 from utils.utils import clean_project_tag
 from ai.tools.utils.utils import parse_messages
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
+from ai.tools.utils.utils import state_to_reference_materials
 
 def extract_program_ids(state: JobState) -> JobState:
-    tokens = list(set([token for x in state['analyses'] for token in x.tokens]))
-    projects = list(set([ x.project for x in state['analyses']]))
-    example_queries='\n\n'.join(state['flipside_example_queries'].text.tolist())
-    analysis_description=state['analysis_description']
-    tweets_summary=state['tweets_summary']
-    web_search_summary=state['web_search_summary']
+    reference_materials = state_to_reference_materials(state)
     prompt = f"""
     You are a crypto data assistant. Your task is to extract a list of Solana program IDs relevant to the user's analysis goal.
 
-    Use the context below, including tokens, projects, tweet summaries, web search results, and example SQL queries. Focus on identifying only the program IDs that are necessary to support the user's goal.
+    Use the context below to help identify the program IDs. Focus on identifying only the program IDs that are necessary to support the user's goal. Some of the context may be irrelevant to the user's goal, so ignore it.
 
     ---
 
-    **User Analysis Goal:**
-    {analysis_description}
+    ## User Analysis Goal
+    {state['analysis_description']}
 
-    **Tokens (Optional):**
-    {tokens}
-
-    **Projects (Optional):**
-    {projects}
-
-    **Tweet Summary:**
-    {tweets_summary}
-
-    **Web Search Summary:**
-    {web_search_summary}
-
-    **Example SQL Queries:**
-    {example_queries}
+    {reference_materials}
 
     ---
 
@@ -46,6 +29,7 @@ def extract_program_ids(state: JobState) -> JobState:
     - Use the query descriptions and SQL content to guide your selection.
     - If no relevant program ID can be identified, return an empty list (`[]`).
     - Do not include any explanation, justification, or formatting.
+    - Typically, there will only be 0 or 1 program IDs relevant to the user's goal.
 
     Return only the list.
     """

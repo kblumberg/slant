@@ -10,11 +10,58 @@ from utils.flipside import extract_project_tags_from_user_prompt
 from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_flipside_sql
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
-from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.utils.utils import state_to_reference_materials, get_optimization_sql_notes_for_flipside
+
+def flipside_optimize_query_fn(state: JobState, flipside_sql_query: str) -> str:
+
+    # flipside_sql_query = state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
+    optimization_sql_notes = get_optimization_sql_notes_for_flipside()
+
+    prompt = f"""
+        You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
+
+        ---
+
+        ## Task
+
+        Optimize the following Snowflake SQL query, keeping the same logic and output, but making it more efficient by adapting the JOIN and WHERE clauses where possible to make the query more performant.
+
+        ### SQL Query:
+        {flipside_sql_query}
+
+        ---
+
+        {optimization_sql_notes}
+
+        ---
+
+        ## Flipside Data Schema
+        {state['schema']}
+
+        ---
+
+        ## ✍️ Output
+
+        Write a **correct, performant, and idiomatic** Snowflake SQL query that keeps the same logic and output, but is more efficient. If there are no optimizations to make, just return the original query.
+
+        Keep everything else the same, just optimize the JOIN and WHERE clauses.
+
+        Return ONLY the raw SQL (no extra text):
+    """
+    # log('flipside_optimize_query_fn')
+    # log(prompt)
+
+    sql_query = state['reasoning_llm'].invoke(prompt).content
+
+    # Remove SQL code block markers if present
+    sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
+    log(f"flipside_optimize_query_fn query:")
+    log(sql_query)
+    return sql_query
 
 def optimize_flipside_query(state: JobState) -> JobState:
 
-    reference_materials = state_to_reference_materials(state)
+    reference_materials = state_to_reference_materials(state, include_performance_notes=True)
 
     prompt = f"""
         You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.

@@ -40,7 +40,7 @@ def summarize_tweets(state: JobState) -> JobState:
 
     formatted_prompt = prompt.format(
         analysis_description=state['analysis_description'],
-        tweets='\n'.join([str(x) for x in state['tweets']])
+        tweets='\n'.join([str(x)[:15000] for x in state['tweets']])[:35000]
     )
     tweets_summary = state['llm'].invoke(formatted_prompt).content
     log(f'tweets_summary:\n{tweets_summary}')

@@ -6,6 +6,7 @@ import psycopg
 import markdown
 import pandas as pd
 from utils.utils import log
+from datetime import datetime
 from tavily import TavilyClient
 from classes.JobState import JobState
 from langchain_openai import ChatOpenAI
@@ -16,7 +17,6 @@ from ai.tools.analyst.human_input import human_input
 from ai.tools.analyst.parse_analyses import parse_analyses
 from ai.tools.utils.print_job_state import print_job_state
 from ai.tools.flipside.decide_flipside_tables import decide_flipside_tables
-from ai.tools.flipside.decide_flipside_tables_from_queries import decide_flipside_tables_from_queries
 from ai.tools.twitter.rag_search_tweets import rag_search_tweets
 from ai.tools.web.web_search import web_search
 from ai.tools.analyst.ask_follow_up_questions import ask_follow_up_questions
@@ -43,7 +43,12 @@ from ai.tools.web.summarize_web_search import summarize_web_search
 from ai.tools.flipside.refine_flipside_query_prompt import refine_flipside_query_prompt
 from ai.tools.analyst.extract_program_ids import extract_program_ids
 from ai.tools.analyst.determine_approach import determine_approach
-
+from ai.tools.analyst.determine_start_timestamp import determine_start_timestamp
+from ai.tools.flipside.check_decoded_flipside_tables import check_decoded_flipside_tables
+from ai.tools.flipside.flipside_determine_approach import flipside_determine_approach
+from ai.tools.flipside.flipside_check_query_subset import flipside_check_query_subset
+from ai.tools.flipside.flipside_subset_example_queries import flipside_subset_example_queries
+from ai.tools.utils.utils import get_flipside_schema_data
 def follow_up_questions_logic(state: JobState) -> str:
     log(f'follow_up_questions_logic:')
     log('follow_up_questions')
@@ -56,12 +61,40 @@ def follow_up_questions_logic(state: JobState) -> str:
     else:
         return "ContextSummarizer"
 
+def post_check_decoded_flipside_tables_logic(state: JobState) -> str:
+    log(f'post_check_decoded_flipside_tables_logic:')
+    log(f'use_decoded_flipside_tables: {state["use_decoded_flipside_tables"]}')
+    if state['use_decoded_flipside_tables']:
+        return "WriteFlipsideQuery"
+    else:
+        return "FlipsideSubsetExampleQueries"
+
+def post_write_flipside_query_logic(state: JobState) -> str:
+    log(f'post_write_flipside_query_logic:')
+    start_timestamp = datetime.strptime(state['start_timestamp'], '%Y-%m-%d')
+    total_days = (datetime.now() - start_timestamp).days
+    log(f'total_days: {total_days}')
+    log(f'approach: {state["approach"]}')
+    log(f'use_decoded_flipside_tables: {state["use_decoded_flipside_tables"]}')
+    if total_days >= 33 and state['approach'] == '2' and not state['use_decoded_flipside_tables']:
+        return "FlipsideCheckQuerySubset"
+    else:
+        return "ExecuteFlipsideQuery"
+
+def post_determine_approach_logic(state: JobState) -> str:
+    log(f'post_determine_approach_logic:')
+    log(f'approach: {state["approach"]}')
+    if state['approach'] == '1':
+        return "FlipsideDetermineApproach"
+    else:
+        return "ExtractProgramIds"
+
 def context_summarizer_logic(state: JobState) -> str:
-    log(f'context_summarizer_logic:')
-    log('context_summary')
-    log(state['context_summary'])
+    # log(f'context_summarizer_logic:')
+    # log('context_summary')
+    # log(state['context_summary'])
     if len(state["follow_up_questions"]) == 0:
-        return "WriteFlipsideQueryOrInvestigateData"
+        return "DetermineApproach"
     else:
         return "RespondWithContext"
 
@@ -197,7 +230,6 @@ def make_graph():
     builder.add_node("ToolExecutor", wrap_node(tool_executor))
     builder.add_node("HumanInput", wrap_node(human_input))
     builder.add_node("DecideFlipsideTables", wrap_node(decide_flipside_tables))
-    builder.add_node("DecideFlipsideTablesFromQueries", wrap_node(decide_flipside_tables_from_queries))
     builder.add_node("PrintJobState", wrap_node(print_job_state))
     builder.add_node("CreateAnalysisDescription", wrap_node(create_analysis_description))
     builder.add_node("RespondWithContext", wrap_node(respond_with_context))
@@ -210,6 +242,8 @@ def make_graph():
     builder.add_node("VerifyFlipsideQuery", wrap_node(verify_flipside_query))
     builder.add_node("ExtractProgramIds", wrap_node(extract_program_ids))
     builder.add_node("DetermineApproach", wrap_node(determine_approach))
+    builder.add_node("FlipsideDetermineApproach", wrap_node(flipside_determine_approach))
+    builder.add_node("FlipsideSubsetExampleQueries", wrap_node(flipside_subset_example_queries))
     # builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(lambda state: {}))
     # builder.add_node("VerifyFlipsideQuery", wrap_node(lambda state: {}))
     builder.add_node("ImproveFlipsideQuery", wrap_node(improve_flipside_query))
@@ -217,6 +251,9 @@ def make_graph():
     builder.add_node("ContextSummarizer", wrap_node(context_summarizer))
     builder.add_node("ExtractTransactions", wrap_node(extract_transactions))
     builder.add_node("RefineFlipsideQueryPrompt", wrap_node(refine_flipside_query_prompt))
+    builder.add_node("DetermineStartTimestamp", wrap_node(determine_start_timestamp))
+    builder.add_node("CheckDecodedFlipsideTables", wrap_node(check_decoded_flipside_tables))
+    builder.add_node("FlipsideCheckQuerySubset", wrap_node(flipside_check_query_subset))
     builder.add_node("JoinTools1", wrap_node(lambda state: {}, name="JoinTools1"))
     builder.add_node("JoinTools2", wrap_node(lambda state: {}, name="JoinTools2"))
     builder.add_node("JoinTools3", wrap_node(lambda state: {}, name="JoinTools3"))
@@ -276,11 +313,16 @@ def make_graph():
     builder.add_edge("ToolSelector", "ToolExecutor")
     builder.add_edge("ToolExecutor", "AskFollowUpQuestions")
     # builder.add_edge("AskFollowUpQuestions", "WriteFlipsideQueryOrInvestigateData")
-    builder.add_edge("WriteFlipsideQueryOrInvestigateData", "DetermineApproach")
-    builder.add_edge("DetermineApproach", "ExtractProgramIds")
-    builder.add_edge("ExtractProgramIds", "WriteFlipsideQuery")
-    # builder.add_edge("WriteFlipsideQuery", "ImproveFlipsideQuery")
-    builder.add_edge("WriteFlipsideQuery", "ExecuteFlipsideQuery")
+    # builder.add_edge("WriteFlipsideQueryOrInvestigateData", "DetermineApproach")
+    builder.add_edge("FlipsideSubsetExampleQueries", "DecideFlipsideTables")
+    builder.add_edge("DecideFlipsideTables", "DetermineApproach")
+    builder.add_conditional_edges("DetermineApproach", post_determine_approach_logic)
+    builder.add_edge("ExtractProgramIds", "DetermineStartTimestamp")
+    builder.add_edge("DetermineStartTimestamp", "CheckDecodedFlipsideTables")
+    builder.add_conditional_edges("CheckDecodedFlipsideTables", post_check_decoded_flipside_tables_logic)
+    builder.add_edge("FlipsideDetermineApproach", "WriteFlipsideQuery")
+    builder.add_conditional_edges("WriteFlipsideQuery", post_write_flipside_query_logic)
+    builder.add_edge("FlipsideCheckQuerySubset", "ExecuteFlipsideQuery")
     # builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
     builder.add_edge("FixFlipsideQuery", "ExecuteFlipsideQuery")
     builder.add_conditional_edges("ExecuteFlipsideQuery", post_flipside_execution_logic)
@@ -337,17 +379,17 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     # log(memory.messages)
     graph = make_graph()
     llm = ChatOpenAI(
-        model="gpt-4o-mini",
+        model="gpt-4.1-mini",
         openai_api_key=OPENAI_API_KEY,
         temperature=0.01,
     )
     complex_llm = ChatOpenAI(
-        model="gpt-4o",
+        model="gpt-4.1",
         openai_api_key=OPENAI_API_KEY,
         temperature=0.01,
     )
     reasoning_llm = ChatOpenAI(
-        model="o3-mini",
+        model="o4-mini",
         # model="o1",
         openai_api_key=OPENAI_API_KEY
     )
@@ -355,10 +397,11 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
 
     # load flipside queries from rag db
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    schema_path = os.path.join(current_dir, "..", "..", "context", "flipside", "schema.sql")
-    with open(schema_path, "r") as f:
-        schema = f.read()
+    # current_dir = os.path.dirname(os.path.abspath(__file__))
+    # schema_path = os.path.join(current_dir, "..", "..", "context", "flipside", "schema.sql")
+    # with open(schema_path, "r") as f:
+    #     schema = f.read()
+    schema = get_flipside_schema_data()
 
     curated_tables = ['solana.nft.ez_nft_sales','solana.nft.dim_nft_metadata','solana.nft.fact_nft_mints','solana.nft.fact_nft_mint_actions','solana.nft.fact_nft_burn_actions','solana.price.ez_prices_hourly','solana.price.ez_asset_metadata','solana.defi.ez_dex_swaps','solana.defi.ez_liquidity_pool_actions','solana.defi.fact_bridge_activity','solana.defi.fact_token_burn_actions','solana.defi.fact_token_mint_actions','solana.defi.fact_swaps_jupiter_inner','solana.defi.fact_stake_pool_actions','solana.gov.ez_staking_lp_actions','solana.gov.fact_block_production','solana.gov.fact_gauges_creates','solana.gov.fact_gauges_votes','solana.gov.fact_gov_actions','solana.gov.fact_proposal_creation','solana.gov.fact_proposal_votes','solana.gov.fact_rewards_fee','solana.gov.fact_rewards_rent','solana.gov.fact_rewards_staking','solana.gov.fact_rewards_voting','solana.gov.fact_validators','solana.gov.fact_votes_agg_block','solana.gov.fact_vote_accounts','solana.gov.dim_epoch','solana.gov.fact_stake_accounts','solana.stats.ez_core_metrics_hourly','crosschain.core.dim_dates','solana.core.dim_labels','solana.core.ez_signers']
     raw_tables = ['solana.core.ez_events_decoded','solana.core.fact_transactions','solana.core.fact_transfers','solana.core.fact_decoded_instructions','solana.core.fact_events','solana.core.fact_events_inner','solana.core.fact_sol_balances','solana.core.fact_token_account_owners','solana.core.fact_token_balances']
@@ -399,6 +442,7 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , reasoning_llm=reasoning_llm
         , memory=memory
         , additional_contexts=[]
+        , additional_context_summary=''
         , completed_tools=[]
         , upcoming_tools=['RagSearchTweets','RagSearchProjects','LoadExampleFlipsideQueries','WebSearch','RefineFlipsideQueryPrompt','ExtractTransactions','CreateAnalysisDescription']
         , flipside_tables=[]
@@ -412,6 +456,12 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , curated_tables=curated_tables
         , raw_tables=raw_tables
         , approach=''
+        , start_timestamp='2021-01-01'
+        , program_ids=[]
+        , use_decoded_flipside_tables=False
+        , flipside_determine_approach=''
+        , eta=0
+        , flipside_subset_example_queries=[]
     )
     memory.save_conversation(state)
     message = {
@@ -439,11 +489,11 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         flipside_sql_query_result = chunk.get('flipside_sql_query_result')
         response['highcharts_datas'] = []
         if len(flipside_sql_query_result):
-            if len(flipside_sql_query_result):
-                log('flipside_sql_query_result 426')
-                log(flipside_sql_query_result)
-                log('flipside_sql_query_result.columns')
-                log(flipside_sql_query_result.columns)
+            # if len(flipside_sql_query_result):
+            #     log('flipside_sql_query_result 426')
+            #     log(flipside_sql_query_result)
+            #     log('flipside_sql_query_result.columns')
+            #     log(flipside_sql_query_result.columns)
             log(f'len(highcharts_configs): {len(highcharts_configs)}')
             x_col = 'timestamp' if 'timestamp' in flipside_sql_query_result.columns else 'category' if 'category' in flipside_sql_query_result.columns else ''
             # log(f'x_col: {x_col}')

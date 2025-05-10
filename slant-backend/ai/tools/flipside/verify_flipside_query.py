@@ -10,7 +10,7 @@ from utils.flipside import extract_project_tags_from_user_prompt
 from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_flipside_sql
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
-from ai.tools.utils.utils import print_tool_starting, get_sql_notes, state_to_reference_materials
+from ai.tools.utils.utils import state_to_reference_materials
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 
 def verify_flipside_query(state: JobState) -> JobState:
@@ -59,7 +59,7 @@ def verify_flipside_query(state: JobState) -> JobState:
 
         ---
 
-        {state_to_reference_materials(state)}
+        {state_to_reference_materials(state, include_performance_notes=True)}
 
         ---
 
@@ -130,7 +130,7 @@ def verify_flipside_query(state: JobState) -> JobState:
         ---
 
         ## 📘 Reference Materials
-        {state_to_reference_materials(state, exclude_keys=['tweets','web_search_results','projects','additional_contexts'])}
+        {state_to_reference_materials(state, exclude_keys=['tweets','web_search_results','projects','additional_contexts'], include_performance_notes=True)}
 
         ---
 

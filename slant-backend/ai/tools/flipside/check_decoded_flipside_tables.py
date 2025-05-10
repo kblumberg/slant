@@ -10,36 +10,45 @@ from utils.flipside import extract_project_tags_from_user_prompt
 from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_flipside_sql
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
-from ai.tools.utils.utils import print_tool_starting, get_sql_notes, state_to_reference_materials
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 from utils.db import fs_load_data
 
 def check_decoded_flipside_tables(state: JobState) -> JobState:
     if len(state['program_ids']) == 0:
-        return {'check_decoded_tables': '', 'completed_tools': ["CheckDecodedTables"]}
+        return {'use_decoded_flipside_tables': False, 'completed_tools': ["CheckDecodedFlipsideTables"]}
     
     query = f"""
     with t0 as (
         select program_id
         , min(block_timestamp) as min_block_timestamp
+        , min(block_timestamp::date) as min_date
         from solana.core.ez_events_decoded
-        where program_id in ({', '.join(state['program_ids'])})
+        where block_timestamp >= '{state['start_timestamp']}'
+            and program_id in ('{"', '".join(state['program_ids'])}')
         group by 1
     )
     , t1 as (
         select t0.program_id
+        , min_date
         , count(distinct e.tx_id) as tx_count
         , max(datediff(day, e.block_timestamp, t0.min_block_timestamp)) as max_days_diff
         from t0
-        left join solana.core.fact_events e on t0.program_id = e.program_id
+        left join solana.core.fact_events e
+            on e.block_timestamp >= '{state['start_timestamp']}'
             and e.block_timestamp < t0.min_block_timestamp
-        group by 1
+            and t0.program_id = e.program_id
+        group by 1, 2
     )
     select * from t1
     """
-    df = fs_load_data(query)
+    df, error, load_time = fs_load_data(query, 20)
     log(f'check_decoded_flipside_tables program_ids: {state["program_ids"]}')
     log(df)
     use_decoded_flipside_tables = len(df) == len(state['program_ids']) and df.tx_count.max() <= 25
     log(f'use_decoded_flipside_tables: {use_decoded_flipside_tables}')
-    return {'use_decoded_flipside_tables': use_decoded_flipside_tables, 'completed_tools': ["CheckDecodedFlipsideTables"]}
+    if len(df):
+        start_timestamp = max(str(df.min_date.min())[:10], state['start_timestamp'])
+        log(f'setting start_timestamp from {state["start_timestamp"]} -> {start_timestamp}')
+        return {'use_decoded_flipside_tables': use_decoded_flipside_tables, 'start_timestamp': start_timestamp, 'completed_tools': ["CheckDecodedFlipsideTables"]}
+    else:
+        return {'use_decoded_flipside_tables': use_decoded_flipside_tables, 'completed_tools': ["CheckDecodedFlipsideTables"]}

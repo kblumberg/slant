@@ -79,8 +79,8 @@ def format_for_highcharts(state: JobState) -> JobState:
     """ if len(categorical_columns) else ""
     log(f'number_columns: {number_columns}')
     log(f'categorical_columns: {categorical_columns}')
-    categories = '", "'.join(sql_query_result['category'].unique().tolist()) if 'category' in sql_query_result.columns else []
-    is_categorical = 1 if 'category' in sql_query_result.columns else 0
+    categories = '", "'.join(state['flipside_sql_query_result']['category'].unique().tolist()) if 'category' in state['flipside_sql_query_result'].columns else []
+    is_categorical = 1 if 'category' in state['flipside_sql_query_result'].columns else 0
     xAxis = f"""
         {{ "categories": ["{categories}"] }}
     """ if len(categories) else f"""
@@ -137,14 +137,13 @@ Using the provided dataset, generate a **list of fully functional Highcharts con
     - **Do NOT use any Date functions (e.g. Date.UTC, Date.parse, etc.)**
     - **This will be passed to a JSON.parse() function, so it must be valid JSON with only strings, no functions**
     - Ensure the JSON is properly formatted and structured.
-    - All values in the JSON must be **fully evaluated and concrete**.
-    - Do **NOT** include expressions like `100 - 57.372558`. Compute it first, and write the final number (e.g. `42.627442`).
     - The chart JSON must be valid when passed to `JSON.parse()` in JavaScript — it should NOT contain any operations, expressions, or function calls.
     - In the "series" section, use empty `data: []` arrays. Data will be filled in later.
     - If the x-axis represents time, use "xAxis": {{ "type": "datetime" }} and expect series.data to be an array of {{ x: timestamp_ms, y: value }} and the column name for the x-axis is `timestamp`.
     - If the x-axis is categorical, use "xAxis": {{ "categories": [] }} and expect series.data to be an array of numbers and the column name for the x-axis is `category`.
     - If it is a "type": "datetime" chart, have a preference for a line chart.
     - Create as many series charts as needed to display all requested data.
+    - Make sure you are not forgetting any data or series.
 
 ---
 
@@ -194,7 +193,7 @@ Using the provided dataset, generate a **list of fully functional Highcharts con
     #     openai_api_key=OPENAI_API_KEY,
     #     temperature=0.0
     # )
-    raw_config = state['complex_llm'].invoke(prompt).content
+    raw_config = state['reasoning_llm'].invoke(prompt).content
     highcharts_configs = validate_and_clean_highcharts_json(raw_config)
     log('format_for_highcharts highcharts_configs')
     log(highcharts_configs)

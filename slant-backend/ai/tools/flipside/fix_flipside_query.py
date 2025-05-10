@@ -14,7 +14,7 @@ from ai.tools.utils.utils import state_to_reference_materials
 
 def fix_flipside_query(state: JobState) -> JobState:
 
-    reference_materials = state_to_reference_materials(state)
+    reference_materials = state_to_reference_materials(state, include_performance_notes=True)
 
     prompt = f"""
         You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.

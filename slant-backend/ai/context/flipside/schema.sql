@@ -4,15 +4,16 @@ Here is the schema, tables, and columns for the Flipside database. Use this to u
 
 ================================================================================
 
-Performance Notes:
-- If you have a `block_timestamp` filter or join, ALWAYS put that first in the WHERE clause to optimize performance.
+Performance Notes **SUPER IMPORTANT**:
+- If you have a `block_timestamp` filter or join, ALWAYS put that first in the WHERE clause or JOIN clause to optimize performance.
 - ALWAYS filter and join on `block_timestamp` when possible and appropriate to optimize performance.
 - Even when you are filtering one table for `block_timestamp`, filter the other table for `block_timestamp` as well to improve performance. e.g. `FROM table1 JOIN table2 ON table1.block_timestamp = table2.block_timestamp AND table1.tx_id = table2.tx_id WHERE table1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE()) AND table2.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())`
+- If you are joining on `tx_id`, ALWAYS also join on `block_timestamp` as well to improve performance and put the join on `block_timestamp` first. e.g. `FROM table1 t1 JOIN table2 t2 ON t1.block_timestamp = t2.block_timestamp AND t1.tx_id = t2.tx_id`
 
 ================================================================================
 
 Schema: core
-Table: solana.core.dim_labels
+## Table: solana.core.dim_labels
 Purpose: Provides labels for Solana addresses (programs, accounts, etc.).
 Columns:
 - address
@@ -21,7 +22,7 @@ Columns:
 - label_subtype (e.g. nf_token_contract, deposit_wallet, token_contract, pool, aggregator_contract, validator, governance, general_contract, router, bridge)
 - label (e.g. binance, coinbase, bybit, raydium, stepn, gate.io, kucoin, okx, backpack exchange, kraken, mexc)
 
-Table: solana.core.ez_events_decoded
+## Table: solana.core.ez_events_decoded
 Purpose: Provides decoded event data from program instructions. Use this table to extract data from events emitted by specific program ids.
 Columns:
 - block_timestamp
@@ -38,7 +39,7 @@ Columns:
 - decoding_error
 
 
-Table: solana.core.fact_transactions
+## Table: solana.core.fact_transactions
 Purpose: Provides detailed transaction information.
 Columns:
 - block_timestamp
@@ -61,20 +62,20 @@ Columns:
 - tx_index: The index of the transaction in the block. Index of 0 is the first transaction executed in the block.
 
 
-Table: solana.core.fact_transfers
+## Table: solana.core.fact_transfers
 Purpose: Tracks SOL and SPL token transfers.
 Columns:
 - block_timestamp
 - block_id
 - tx_id
 - index
-- tx_from
-- tx_to
-- amount
+- tx_from: The wallet address that sends tokens
+- tx_to: The wallet address that receives tokens
+- amount: The number of tokens sent (already adjusted for decimals)
 - mint
 
 
-Table: solana.core.fact_decoded_instructions
+## Table: solana.core.fact_decoded_instructions
 Purpose: Provides decoded instruction data based on program IDLs.
 Columns:
 - tx_id
@@ -88,7 +89,7 @@ Columns:
 - decoded_instruction
 
 
-Table: solana.core.fact_events
+## Table: solana.core.fact_events
 Purpose: Records inner instructions generated during transaction execution.
 Columns:
 - block_timestamp
@@ -102,7 +103,7 @@ Columns:
 - instruction
 - inner_instruction
 
-Table: solana.core.fact_events_inner
+## Table: solana.core.fact_events_inner
 Purpose: Records inner instructions generated during transaction execution.
 Columns:
 - block_timestamp
@@ -111,13 +112,13 @@ Columns:
 - succeeded
 - instruction_index: Location of the instruction (event) within a transaction
 - inner_index: Location of the instruction within an instructions (event) inner instruction
-- instruction_program_id: An address that identifies the program that is being interacted with. I.E. which DEX for a swap or marketplace for an NFT sale.. For the instruction calling this inner instruction.
-- program_id: An address that identifies the program that is being interacted with. I.E. which DEX for a swap or marketplace for an NFT sale.
+- instruction_program_id: The program id of the instruction calling this inner instruction.
+- program_id: The program id of the inner instruction.
 - event_type (e.g. transferChecked, transfer, createAccount, initializeAccount3, getAccountDataSize, initializeImmutableOwner, mintTo, approve, closeAccount, burn)
-- instruction: Specifies which program it is calling, which accounts it wants to read or modify, and additional data that serves as auxiliary input to the program
+- instruction: JSON object containing the instruction data
 
 
-Table: solana.core.fact_sol_balances
+## Table: solana.core.fact_sol_balances
 Purpose: Records the balance of SOL in an account before and after a transaction.
 Columns:
 - block_timestamp
@@ -131,7 +132,7 @@ Columns:
 - balance: The final decimal-adjusted amount in an account.
 
 
-Table: solana.core.fact_token_account_owners
+## Table: solana.core.fact_token_account_owners
 Purpose: Records the owner of a token account.
 Columns:
 - account_address: Address of token account
@@ -140,7 +141,7 @@ Columns:
 - end_block_id: Block where this ownership ends, null value represents current ownership
 
 
-Table: solana.core.fact_token_balances
+## Table: solana.core.fact_token_balances
 Purpose: Records the balance of a token account.
 Columns:
 - block_timestamp
@@ -155,7 +156,7 @@ Columns:
 
 
 
-Table: solana.core.ez_signers
+## Table: solana.core.ez_signers
 Purpose: 1 row per signer. Summarizes the signers activity across all days.
 Columns:
 - signer
@@ -175,7 +176,7 @@ Columns:
 Schema: nft
 
 
-Table: solana.nft.ez_nft_sales (default to using this table for NFT sales)
+## Table: solana.nft.ez_nft_sales (default to using this table for NFT sales)
 
 Purpose: Records NFT sales
 
@@ -197,7 +198,7 @@ Columns:
 - seller_address
 - mint: address that uniquely identifies the NFT
 - nft_name
-- price: The amount of Solana the NFT was purchased for (if you are using this column, best to filter for currency_address = "So11111111111111111111111111111111111111111" as well to ensure you are getting SOL volume)
+- price: The amount the NFT was purchased for (if you are using this column, best to filter for currency_address = "So11111111111111111111111111111111111111111" as well to ensure you are getting SOL volume)
 - currency_address (typically "So11111111111111111111111111111111111111111", others include "3dgCCb15HMQSA4Pn3Tfii5vRk7aRqTH95LJjxzsG2Mug" honeland, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" usdc, and "MEFNBXixkEbait3xn9bkm8WsJzXtVsaJEn4c8Sam21u" $ME magic eden)
 - currency_symbol (typically "SOL", others include "HXD", "USDC", and "ME")
 - price_usd
@@ -210,7 +211,7 @@ Columns:
 - metadata_uri: URL that links to the token metadata on the ipfs service
 
 
-Table: solana.nft.dim_nft_metadata
+## Table: solana.nft.dim_nft_metadata
 Purpose: Stores metadata and attributes for NFTs on Solana, including collection information, creator details, and NFT characteristics
 Columns:
 - mint
@@ -224,7 +225,7 @@ Columns:
 - nft_name
 
 
-Table: solana.nft.fact_nft_mints
+## Table: solana.nft.fact_nft_mints
 Purpose: Tracks NFT minting events
 Columns:
 - block_id
@@ -239,7 +240,7 @@ Columns:
 - is_compressed
 
 
-Table: solana.nft.fact_nft_mint_actions
+## Table: solana.nft.fact_nft_mint_actions
 Purpose: Tracks NFT minting events and actions
 Columns:
 - block_id
@@ -256,7 +257,7 @@ Columns:
 - mint_standard_type
 
 
-Table: solana.nft.fact_nft_burn_actions
+## Table: solana.nft.fact_nft_burn_actions
 Purpose: Records NFT burns
 Columns:
 - block_timestamp
@@ -274,7 +275,7 @@ Columns:
 
 
 
-Table: solana.nft.fact_nft_sales (**this table is deprecated, use `solana.nft.ez_nft_sales` instead**)
+## Table: solana.nft.fact_nft_sales (**this table is deprecated, use `solana.nft.ez_nft_sales` instead**)
 Purpose: Records NFT sales
 Columns:
 - marketplace (e.g. tensorswap, magic eden v3, magic eden v2, Magic Eden, solsniper, tensor, hadeswap, hyperspace, exchange art, solanart)
@@ -305,7 +306,7 @@ Schema Notes for `solana.price.ez_prices_hourly` and `solana.price.ez_asset_meta
 - If doing exploratory analysis, you can use `symbol` or `name` to filter to then use `token_address` for final analysis
 
 
-Table: solana.price.ez_prices_hourly
+## Table: solana.price.ez_prices_hourly
 Purpose: Provides price data for tokens on Solana
 Notes:
 - If the token is not in `solana.price.ez_prices_hourly`, you can calculate the price using the `solana.defi.ez_dex_swaps` table instead
@@ -320,7 +321,7 @@ Columns:
 - is_imputed: If price was estimated/carried forward
 
 
-Table: solana.price.ez_asset_metadata
+## Table: solana.price.ez_asset_metadata
 Purpose: Provides metadata for tokens on Solana
 Columns:
 - asset_id
@@ -336,11 +337,11 @@ Columns:
 
 Schema: defi
 
-Table: solana.defi.ez_dex_swaps
+## Table: solana.defi.ez_dex_swaps
 Purpose: Records DEX swaps
 
 Columns:
-- swap_program: Name of DEX program (e.g., 'Raydium Liquidity Pool V4', 'phoenix')
+- swap_program: Name of DEX program (e.g., 'raydium concentrated liquidity','pumpswap','pump.fun','Raydium Liquidity Pool V4','orca whirlpool program','meteora dlmm pools program','raydium constant product market maker','lifinity swap v2','meteora pools program')
 - block_id
 - block_timestamp
 - tx_id
@@ -369,7 +370,7 @@ Notes:
 
 
 
-Table: solana.defi.fact_swaps
+## Table: solana.defi.fact_swaps
 Purpose: Records DEX swaps
 Columns:
 - block_timestamp
@@ -384,7 +385,7 @@ Columns:
 - program_id
 - swap_program
 
-Table: solana.defi.ez_liquidity_pool_actions
+## Table: solana.defi.ez_liquidity_pool_actions
 Purpose: Records liquidity pool actions
 Columns:
 - block_timestamp
@@ -415,7 +416,7 @@ Columns:
 - platform (e.g. orca, raydium, meteora)
 
 
-Table: solana.defi.fact_liquidity_pool_actions
+## Table: solana.defi.fact_liquidity_pool_actions
 Purpose: Records liquidity pool actions
 Columns:
 - block_id
@@ -430,7 +431,7 @@ Columns:
 - mint
 
 
-Table: solana.defi.fact_bridge_activity
+## Table: solana.defi.fact_bridge_activity
 Purpose: Records bridge activity
 Columns:
 - block_id
@@ -446,7 +447,7 @@ Columns:
 - mint
 
 
-Table: solana.defi.fact_token_burn_actions
+## Table: solana.defi.fact_token_burn_actions
 Purpose: Records token burns
 Columns:
 - block_timestamp
@@ -464,7 +465,7 @@ Columns:
 - decimal
 - mint_standard_type: The type of mint following Metaplex mint standards
 
-Table: solana.defi.fact_token_mint_actions
+## Table: solana.defi.fact_token_mint_actions
 Purpose: Records token mints
 Columns:
 - block_timestamp
@@ -475,16 +476,16 @@ Columns:
 - inner_index
 - event_type (e.g. mintTo, initializeMint2, initializeMint, mintToChecked, initializeNonTransferableMint)
 - mint
-- mint_authority
+- mint_authority (e.g. `FERjPVNEa7Udq8CEv68h6tPL46Tq7ieE49HrE2wea3XT`, `ZJHzcKvgNvkcygg92F3ua8xA83sfbwFA3TSR8ASLKXd`, etc.)
 - mint_amount
 - token_account
-- signers
-- decimal
+- signers: str[]
+- decimal: e.g. (6, 9, etc.)
 - mint_standard_type: The type of mint following Metaplex mint standards
 
 
-Table: solana.defi.fact_swaps_jupiter_inner
-Purpose: Records Jupiter DEX swaps
+## Table: solana.defi.fact_swaps_jupiter_inner
+Purpose: Records the underlying DEX swaps for swaps that were executed via the Jupiter router
 Columns:
 - block_timestamp
 - block_id
@@ -498,13 +499,15 @@ Columns:
 - swap_from_amount
 - swap_to_mint
 - swap_to_amount
-- swap_program_id: This is the AMM performing the swap
-- aggregator_program_id: This is the aggregator calling the different AMMs
+- swap_program_id: The address of the AMM performing the swap (e.g. `pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA`, `LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo`, `whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc`, `SoLFiHG9TfgtdUXUjWAxi3LtvYuFyDLVhBWxdMZxyCe`, etc)
+- aggregator_program_id: The address of the aggregator calling the different AMMs
 
 
-Table: solana.defi.fact_swaps_jupiter_summary
-IMPORTANT: Use this table to get Jupiter DEX swaps, the solana.defi.ez_dex_swaps table only shows the underlying swaps, but not the fact that Jupiter router was used
-Purpose: Records Jupiter DEX swaps
+## Table: solana.defi.fact_swaps_jupiter_summary
+Notes:
+- This table shows summaries for swaps that were executed via the Jupiter router
+- To get the underlying swaps, use the solana.defi.fact_swaps_jupiter_inner table
+Purpose: Records swaps routed through the Jupiter aggregator
 Columns:
 - block_timestamp
 - block_id
@@ -518,14 +521,14 @@ Columns:
 - swap_from_amount
 - swap_to_mint
 - swap_to_amount
-- program_id
+- program_id: The Jupiter program id used for the swap (e.g. `JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4`, `JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB`, etc.)
 - is_dca_swap: Whether the swap was initiated by a Jupiter DCA
 - dca_requester: Original address that requested the DCA swap
 - is_limit_swap: Whether the swap was initiated by a Jupiter limit order
 - limit_requester: Original address that requested the limit order
 
 
-Table: solana.defi.fact_stake_pool_actions
+## Table: solana.defi.fact_stake_pool_actions
 Purpose: Records stake pool actions (ONLY for the $SOL native token)
 Columns:
 - stake_pool_name (e.g. `jito`, `jpool`, `blazestake`, `daopool`, `marinade`)
@@ -549,7 +552,7 @@ Schema: gov
 
 IMPORTANT: All `solana.gov` tables only include staking $SOL on validators; not staking any other tokens.
 
-Table: solana.gov.ez_staking_lp_actions
+## Table: solana.gov.ez_staking_lp_actions
 Purpose: Records staking actions for Solana validators.
 Columns:
 - block_timestamp
@@ -578,7 +581,7 @@ Columns:
 - move_amount: The amount of SOL moved.
 
 
-Table: solana.gov.fact_block_production
+## Table: solana.gov.fact_block_production
 Purpose: Records block production
 Columns:
 - epoch
@@ -589,7 +592,7 @@ Columns:
 - end_slot: The last slot in the epoch
 
 
-Table: solana.gov.fact_gauges_creates
+## Table: solana.gov.fact_gauges_creates
 Purpose: Records gauge creation
 Columns:
 - program_name
@@ -603,7 +606,7 @@ Columns:
 - validator_account: Validator vote key linked to a gauge
 
 
-Table: solana.gov.fact_gauges_votes
+## Table: solana.gov.fact_gauges_votes
 Purpose: Records gauge votes
 Columns:
 - program_name
@@ -618,7 +621,7 @@ Columns:
 - delegated_shares: Number of shares delegated to vote for this gauge
 
 
-Table: solana.gov.fact_gov_actions
+## Table: solana.gov.fact_gov_actions
 Purpose: Records governance actions
 Columns:
 - program_name
@@ -634,7 +637,7 @@ Columns:
 - amount
 
 
-Table: solana.gov.fact_proposal_creation
+## Table: solana.gov.fact_proposal_creation
 Purpose: Records proposal creation
 Columns:
 - governance_platform: platform used for governance space
@@ -651,7 +654,7 @@ Columns:
 - vote_options: The options that will be available to users who are voting on the proposal
 
 
-Table: solana.gov.fact_proposal_votes
+## Table: solana.gov.fact_proposal_votes
 Purpose: Records proposal votes
 Columns:
 - block_timestamp
@@ -666,7 +669,7 @@ Columns:
 - program_id
 
 
-Table: solana.gov.fact_rewards_fee
+## Table: solana.gov.fact_rewards_fee
 Purpose: Records fee rewards
 Columns:
 - block_timestamp
@@ -678,7 +681,7 @@ Columns:
 - post_balance_sol: The amount of SOL in the account after event
 
 
-Table: solana.gov.fact_rewards_rent
+## Table: solana.gov.fact_rewards_rent
 Purpose: Records rent rewards
 Columns:
 - block_timestamp
@@ -690,7 +693,7 @@ Columns:
 - dim_epoch_id
 
 
-Table: solana.gov.fact_rewards_staking
+## Table: solana.gov.fact_rewards_staking
 Purpose: Records staking rewards
 Columns:
 - block_timestamp
@@ -702,7 +705,7 @@ Columns:
 - dim_epoch_id
 
 
-Table: solana.gov.fact_rewards_voting
+## Table: solana.gov.fact_rewards_voting
 Purpose: Records voting rewards
 Columns:
 - block_timestamp
@@ -714,7 +717,7 @@ Columns:
 - dim_epoch_id
 
 
-Table: solana.gov.fact_validators
+## Table: solana.gov.fact_validators
 Purpose: Records validators
 Columns:
 - epoch: The epoch when data was recorded
@@ -733,13 +736,13 @@ Columns:
 - keybase_id
 - latitude
 - longitude
-- validator_name (e.g. Hard Yaka, Crypto Plant, Laine, stakewiz.com, MonkeDAO, InfStones, Alenka, Decommissioned Validator, Lido / RockX)
+- validator_name (e.g. `Hard Yaka`, `Crypto Plant`, `Laine`, `stakewiz.com`, `MonkeDAO`, `InfStones`, `Alenka`, `Decommissioned Validator`, `Lido / RockX`)
 - software_version
 - updated_at: Date and time when the validator was last updated
 - www_url: URL for the validator
 
 
-Table: solana.gov.fact_votes_agg_block
+## Table: solana.gov.fact_votes_agg_block
 Purpose: Records vote aggregation by block
 Columns:
 - block_timestamp
@@ -747,7 +750,7 @@ Columns:
 - num_votes: The number of vote events that occurred within the block
 
 
-Table: solana.gov.fact_vote_accounts
+## Table: solana.gov.fact_vote_accounts
 Purpose: Records vote accounts
 Columns:
 - epoch
@@ -767,7 +770,7 @@ Columns:
 - rent_epoch: Epoch at which this account will next owe rent
 
 
-Table: solana.gov.dim_epoch
+## Table: solana.gov.dim_epoch
 Purpose: Records epochs
 Columns:
 - dim_epoch_id
@@ -776,7 +779,7 @@ Columns:
 - end_block: The last block within an Epoch
 
 
-Table: solana.gov.fact_stake_accounts
+## Table: solana.gov.fact_stake_accounts
 Purpose: Records stake accounts
 Columns:
 - epoch
@@ -802,7 +805,7 @@ Columns:
 
 Schema: stats
 
-Table: solana.stats.ez_core_metrics_hourly
+## Table: solana.stats.ez_core_metrics_hourly
 Purpose: Records core metrics
 Columns:
 - hour
@@ -826,7 +829,7 @@ Columns:
 
 Schema: crosschain
 
-Table: crosschain.core.dim_dates
+## Table: crosschain.core.dim_dates
 Purpose: A reference table for dates to be used in joins
 
 Notes:
@@ -864,30 +867,10 @@ The easiest and most efficient way to identify and parse the correct transaction
     - BUT, you MUST make sure that it has data for the `program_id` and correct date range you are looking for.
     - To ensure it does, you can cross reference the `solana.core.fact_events` table, which has all entries for all program ids for all dates.
   2. If that does not work, you can typically use some combination of the other tables:
-  use the `solana.core.fact_transactions` table and filter for the correct program id.
-  3. use the `solana.core.fact_decoded_instructions` table and filter for the correct program id.
-  - use the `solana.core.fact_events` table and filter for the correct event type.
+    - `solana.core.fact_transactions`
+    - `solana.core.fact_events`
 
 
 ================================================================================
 
 Make sure the query includes ALL desired transaction types and excludes all others.
-
-
-SELECT t.block_timestamp
-, t.tx_id
-, e.instruction
-, e.inner_instruction
-, sum(case when t.tx_from = e.signers[0] then t.amount else 0 end) as amount_sent
-, sum(case when t.tx_to = e.signers[0] then t.amount else 0 end) as amount_received
-FROM solana.core.fact_events e
-join solana.core.fact_transfers t
-  on t.block_timestamp = e.block_timestamp
-  and t.tx_id = e.tx_id
-WHERE e.block_timestamp >= current_date - 1
-  and t.block_timestamp >= current_date - 1
-  AND e.succeeded = TRUE
-  AND e.program_id = '2gWf5xLAzZaKX9tQj9vuXsaxTWtzTZDFRn21J3zjNVgu'
-  and t.mint = '4LLbsb5ReP3yEtYzmXewyGjcir5uXtKFURtaEUVC2AHs'
-group by 1, 2, 3, 4
-

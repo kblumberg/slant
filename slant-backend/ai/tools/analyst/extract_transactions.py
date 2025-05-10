@@ -46,6 +46,9 @@ def extract_transactions(state: JobState) -> JobState:
     j = parse_json_from_llm(response, state['llm'])
     transactions = []
     for transaction in j:
+        if len(transaction['id']) != 88:
+            # log('Invalid transaction id: ' + transaction['id'])
+            continue
         transaction['data'] = parse_tx(transaction['id'])
         transactions.append(Transaction(**transaction))
     log('extract_transactions output')

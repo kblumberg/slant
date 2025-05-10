@@ -11,10 +11,11 @@ from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_fl
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
 from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.flipside.optimize_flipside_query import flipside_optimize_query_fn
 
 def write_flipside_query(state: JobState) -> JobState:
 
-    reference_materials = state_to_reference_materials(state)
+    reference_materials = state_to_reference_materials(state, include_performance_notes=True)
 
     prompt = f"""
         You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
@@ -51,5 +52,8 @@ def write_flipside_query(state: JobState) -> JobState:
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
     log(f"write_flipside_query query:")
+    log(sql_query)
+    sql_query = flipside_optimize_query_fn(state, sql_query)
+    log(f"write_flipside_query optimized query:")
     log(sql_query)
     return {'flipside_sql_query': sql_query, 'completed_tools': ["WriteFlipsideQuery"], 'upcoming_tools': ["ExecuteFlipsideQuery"]}

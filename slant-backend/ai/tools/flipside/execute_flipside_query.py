@@ -29,7 +29,7 @@ def execute_flipside_query(state: JobState) -> JobState:
     #     except json.JSONDecodeError:
     #         return "Invalid JSON input"
     query = state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
-    df, error = fs_load_data(query, timeout_minutes=10)
+    df, error, load_time = fs_load_data(query, timeout_minutes=30)
     df = df.dropna()
     # df = df.head(100)
     if error:

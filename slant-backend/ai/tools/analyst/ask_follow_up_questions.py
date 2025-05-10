@@ -11,7 +11,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     # log('='*20)
     # log('\n')
     # log('ask_follow_up_questions starting...')
-    reference_materials = state_to_reference_materials(state, preface = "The following is additional context that might be relevant to the user's prompt. If it is relevant, use it to generate clarifying questions. If not, ignore it.")
+    reference_materials = state_to_reference_materials(state, preface = "The following is additional context that might be relevant to the user's prompt. If it is relevant, use it to generate clarifying questions. If not, ignore it.", exclude_keys=[])
 
     # log('ask_follow_up_questions additional_context')
     # log(additional_context)
@@ -46,6 +46,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
 
         ## Objective:
         Identify what needs clarification before a junior blockchain analyst begins the actual work. Focus on missing details, ambiguous intent, and necessary filters, groupings, or thresholds.
+        ⚠️ Your audience is non-technical. You must speak in plain conceptual language only. Treat the user like a product manager, not a developer or data analyst.
 
         ### General Guidelines
         You should consider:
@@ -56,10 +57,10 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         - Any ambiguity in the user's request that would require clarification
         - Avoid asking questions that are already answered in the **user’s prompt** or previous messages
         - The user **does not** see the additional context. If you reference something from it, you must **quote it fully and clearly**
-        - Do not mention tables or columns specifically — only concepts
+        - 🚫 NEVER mention specific tables, schemas, columns, or any implementation details. The user does not know them and cannot help with them. This includes things like table names, decoded logs, program instructions, or any schema-level terms. Only refer to concepts like "swaps", "DEX activity", "staking", etc.
 
         ## 💡 Preference Rules
-        - Do not mention “previous queries” "tweets" or "web search results" "the context" "the official sources" (the user does not see them) — instead, explicitly reference what you see.
+        - Do not mention “previous queries”, "tweets", "web search results", "the context", "reference material", or any background sources. Only reference them indirectly and explicitly, e.g., “I see this token launched on 2023-01-01 — should I start the analysis from that date?”
         - If you have specifics, use that (e.g. instead of "since token launched", say "since token launched on YYYY-MM-DD")
         - If the context includes something like a launch date or token metadata, use it directly and precisely. E.g., "I see the token launched on 2024-03-12. Should I start the chart from that date?"
         - If you are not 99% sure about the correct program id, mint, address, etc., confirm with the user.
@@ -69,6 +70,9 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         - How specifically to parse the data or transaction; can only ask high level concepts or ask them to provide example transactions
         - Technical questions about **which tables or columns to use** - keep it high level; Do NOT mention any specific tables names or columns in your questions
         - Why they are asking about something
+        - Whether to use decoded instructions, inner instructions, log messages, or raw program interactions
+        - Whether to use specific protocol logic like inner swaps, routed transactions, or yield accounting—treat it all as a black box unless the user has given a transaction ID example
+        - ⚠️ Violating these rules (especially mentioning tables or technical parsing logic) is considered a critical failure. If you're uncertain how to phrase something without referencing technical details, leave it out.
 
 
         **If possible, make a check instead of asking a question**
@@ -116,11 +120,9 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         ["question 1", "question 2", "question 3"]
         ```
 
+        # Examples
         Use the format and tone of the examples below:
-
-        =============
-        = Example 1 =
-        =============
+        ## Example 1
         User prompt: Show me the trading volume and user growth of all Solana trading bots over the last 3 months. What application is gaining the most market share with retail wallets vs whale wallets?
 
 
@@ -128,9 +130,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         ["Here are the solana trading bots I have in mind: XXX, YYY, ZZZ. Are there any others I should include?", "I am defining whale wallets as $100k+ in volume. Is that a good threshold to use?", "What timeframe should I look at?", "Should I group weekly or monthly?"]
 
 
-        =============
-        = Example 2 =
-        =============
+        ## Example 2
         User prompt: Show me what users did after removing liquidity from Orca? Did they provide liquidity into a different pool on Orca or LP to another DEX?
 
 
@@ -138,26 +138,21 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         ["How far back do you want me to analyze?", "What window of time should I use after a user removes liquidity from Orca? E.g Should I just look at their activities over the next 24h?"]
 
 
-        =============
-        = Example 3 =
-        =============
+        ## Example 3
         User prompt: Show me the daily rewards distributed by BaseBet
 
         Response:
         ["What timeframe do you want me to analyze?", "Do you want the total amount or the number of wallets?", "Can you provide an example transaction id of a reward?"]
 
-        =============
-        = Example 4 =
-        =============
+        ## Example 4
         User prompt: Show me the cumulative amount of $ME staking power over time, starting from 2024-01-01
 
         Response:
         []
 
-        =============
         # Critical Reminders
-        =============
         - Make sure to record any wallet addresses, mints, or program ids EXACTLY as they are. Do not change or miss any characters.
+        - NEVER ask the user to answer questions about which tables or columns to use. They are not technical and don't know anything about the Flipside data schemas.
 
     """
     formatted_prompt = prompt.format(

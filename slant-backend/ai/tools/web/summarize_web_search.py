@@ -40,7 +40,7 @@ def summarize_web_search(state: JobState) -> JobState:
 
     formatted_prompt = prompt.format(
         analysis_description=state['analysis_description'],
-        web_search_results='\n'.join([str(x) for x in state['web_search_results']])
+        web_search_results='\n'.join([str(x)[:15000] for x in state['web_search_results']])[:35000]
     )
     web_search_summary = state['llm'].invoke(formatted_prompt).content
     log(f'web_search_summary:\n{web_search_summary}')
