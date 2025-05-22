@@ -3,6 +3,7 @@ from utils.utils import log
 from classes.JobState import JobState
 from ai.tools.utils.utils import parse_messages, state_to_reference_materials
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
+from ai.tools.utils.utils import log_llm_call
 
 def ask_follow_up_questions(state: JobState) -> JobState:
 
@@ -42,54 +43,44 @@ def ask_follow_up_questions(state: JobState) -> JobState:
             """
 
     prompt = """
-        You are an expert blockchain analyst and prompt engineer. Your job is to take a user's high-level prompt and any additional context, and generate a list of *clarifying questions* to ensure that an accurate and complete on-chain analysis can be performed.
+        You are an expert blockchain analyst and prompt engineer. Your job is to generate a list of clarifying questions that help understand a user's high-level request so a junior analyst can perform accurate, complete on-chain analysis.
 
-        ## Objective:
-        Identify what needs clarification before a junior blockchain analyst begins the actual work. Focus on missing details, ambiguous intent, and necessary filters, groupings, or thresholds.
-        ⚠️ Your audience is non-technical. You must speak in plain conceptual language only. Treat the user like a product manager, not a developer or data analyst.
+        ## 🔑 Objective
+        Ask only **non-technical, high-level questions** in plain English. Your audience is **non-technical** (like a product manager). They do **not** know anything about program IDs, logs, token flows, tables, or schemas.
 
-        ### General Guidelines
-        You should consider:
-        - What specific data needs to be extracted or filtered (e.g., by `program_id`, `tx_from`, `tx_to`, `block_timestamp`, etc.)
-        - If you are unsure how to identify the right transaction types, you may ask the user for an example transaction id to give you a guide on how to identify the correct transaction types.
-        - What calculations or groupings are required (e.g., daily vs cumulative totals, wallet segmentation)
-        - Whether additional definitions or thresholds are needed (e.g., define a "whale" wallet or "active" user)
-        - Any ambiguity in the user's request that would require clarification
-        - Avoid asking questions that are already answered in the **user’s prompt** or previous messages
-        - The user **does not** see the additional context. If you reference something from it, you must **quote it fully and clearly**
-        - 🚫 NEVER mention specific tables, schemas, columns, or any implementation details. The user does not know them and cannot help with them. This includes things like table names, decoded logs, program instructions, or any schema-level terms. Only refer to concepts like "swaps", "DEX activity", "staking", etc.
+        ## 🔒 DO NOT EVER
+        - 🚫 Ask about how to parse data, interpret transactions, or decode labels (e.g., "Should I use the 'stake' label?")
+        - 🚫 Mention any specific program IDs, logs, decoded instructions, or schemas unless quoting directly from context AND asking for confirmation
+        - 🚫 Ask which tables, columns, or Flipside schemas to use
+        - 🚫 Ask implementation questions like "Should I count transfers into this address?"
+        - 🚫 Reference "inner instructions", "routed swaps", "decoded logs", "program interactions", etc.
+        - 🚫 Ask "why" the user wants the data — assume they want it for actionable insight
 
-        ## 💡 Preference Rules
-        - Do not mention “previous queries”, "tweets", "web search results", "the context", "reference material", or any background sources. Only reference them indirectly and explicitly, e.g., “I see this token launched on 2023-01-01 — should I start the analysis from that date?”
-        - If you have specifics, use that (e.g. instead of "since token launched", say "since token launched on YYYY-MM-DD")
-        - If the context includes something like a launch date or token metadata, use it directly and precisely. E.g., "I see the token launched on 2024-03-12. Should I start the chart from that date?"
-        - If you are not 99% sure about the correct program id, mint, address, etc., confirm with the user.
+        ⚠️ If you cannot phrase a question without using technical terms or asking for implementation logic — **DO NOT ASK IT.**
 
-        ## 💡 Do not ask about
-        Do NOT ask about:
-        - How specifically to parse the data or transaction; can only ask high level concepts or ask them to provide example transactions
-        - Technical questions about **which tables or columns to use** - keep it high level; Do NOT mention any specific tables names or columns in your questions
-        - Why they are asking about something
-        - Whether to use decoded instructions, inner instructions, log messages, or raw program interactions
-        - Whether to use specific protocol logic like inner swaps, routed transactions, or yield accounting—treat it all as a black box unless the user has given a transaction ID example
-        - ⚠️ Violating these rules (especially mentioning tables or technical parsing logic) is considered a critical failure. If you're uncertain how to phrase something without referencing technical details, leave it out.
+        ## ✅ ONLY ASK ABOUT
+        Ask about things a non-technical stakeholder would care about, such as:
+        - Timeframes or start dates (e.g., "Should I start from the launch date: 2024-03-12?")
+        - Which projects, protocols, or tokens to include/exclude
+        - Thresholds (e.g., "Define whale wallet as over $100k — is that okay?")
+        - Granularity (e.g., "Should I group results weekly or monthly?")
+        - Edge case definitions (e.g., "What counts as a new wallet?")
+        - Confirming specific addresses, mints, or IDs if already quoted in context
+        - Requesting example transaction IDs if identification logic is unclear
 
+        ## 🧠 Reminder
+        - Users do **not** see reference materials. Quote things **fully** if needed.
+        - Avoid repeating questions already answered by the user's prompt or prior messages.
+        - Only return high-level clarifications — if none are needed, return an empty list.
+        - Only ask essential clarifying questions; use reasonable assumptions about the user's intent. 
 
-        **If possible, make a check instead of asking a question**
-        Examples:
-        - Instead of asking "Which $XXX token are you referring to?", say "I see there is a $XXX token with address YYY. Is that the one you want?".
-        - Instead of asking "What timeframe do you want me to analyze?", say "I see this program launched on YYYY-MM-DD. Do you want to analyze the data from then to now?".
-
-        ---
-
-        ## ⚠️ Assumptions to Make
-
-        Unless otherwise stated, assume the following and do NOT ask about them unless the user explicitly mentions them ON THEIR OWN:
-        - The user is asking about on-chain activity on **Solana mainnet**
-        - The analysis runs up to the present day (no end date)
-        - Desired time zone is **UTC**
-        - The user is only interested in "successful" transactions
-        - All standard decoded on-chain data is queryable
+        ## 🤝 Assumptions
+        **Unless the user explicitly mentions otherwise, assume the following:**
+        - Volume should be in USD unless they are talking about a specific token.
+        - Do not subset or exclude any data
+        - If the analysis goes to present day, include today's data
+        - Only include successful transactions
+        **The above assumptions are SUPER important. We do not want to ask any unneccesary questions. Unless the user explicitly mentions otherwise, do NOT ask them the above questions.**
 
         ---
 
@@ -108,8 +99,6 @@ def ask_follow_up_questions(state: JobState) -> JobState:
 
         Write only a **JSON array** of clarifying questions. Make your checks precise.  
         If no clarifying questions are needed, return an empty list.
-
-        ---
 
         ---
 
@@ -153,6 +142,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         # Critical Reminders
         - Make sure to record any wallet addresses, mints, or program ids EXACTLY as they are. Do not change or miss any characters.
         - NEVER ask the user to answer questions about which tables or columns to use. They are not technical and don't know anything about the Flipside data schemas.
+        - Remember the assumptions we made above. Unless the user explicitly mentions otherwise, do NOT ask questions from the assumptions section above.
 
     """
     formatted_prompt = prompt.format(
@@ -162,7 +152,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     )
     # log('formatted_prompt')
     # log(formatted_prompt)
-    response = state['reasoning_llm'].invoke(formatted_prompt).content
+    response = log_llm_call(formatted_prompt, state['llm'], state['user_message_id'], 'AskFollowUpQuestions')
     follow_up_questions = parse_json_from_llm(response, state['llm'])
     log(f'ask_follow_up_questions (message #{len(state["messages"])})')
     log(follow_up_questions)

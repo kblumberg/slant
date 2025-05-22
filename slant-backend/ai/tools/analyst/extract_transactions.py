@@ -1,6 +1,6 @@
 from classes.JobState import JobState
 from classes.Transaction import Transaction
-from ai.tools.utils.utils import log, parse_tx
+from ai.tools.utils.utils import log, parse_tx, log_llm_call
 from ai.tools.utils.utils import parse_messages
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
@@ -40,7 +40,7 @@ def extract_transactions(state: JobState) -> JobState:
     """.format(
         messages=messages
     )
-    response = state['llm'].invoke(prompt).content
+    response = log_llm_call(prompt, state['llm'], state['user_message_id'], 'ExtractTransactions')
     log('extract_tx_ids response')
     log(response)
     j = parse_json_from_llm(response, state['llm'])

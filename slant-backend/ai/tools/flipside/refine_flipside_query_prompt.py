@@ -5,7 +5,7 @@ import pandas as pd
 from utils.utils import log
 from classes.JobState import JobState
 from classes.Analysis import Analysis
-from ai.tools.utils.utils import read_schemas
+from ai.tools.utils.utils import read_schemas, log_llm_call
 from db.flipside.rag_search_queries import rag_search_queries
 
 def refine_flipside_query_prompt(state: JobState) -> JobState:
@@ -54,10 +54,11 @@ def refine_flipside_query_prompt(state: JobState) -> JobState:
         - You should combine relevant terms and insights from all sources above into a concise, intelligent search string for a RAG database.
         - ONLY include information that is directly relevant to the user's analysis goal
         - Do NOT include any explanatory text or formatting—just return the search query as a plain string.
+        - Do not include any time periods or dates
 
         Respond with the refined search query only.
     """
-    refine_flipside_query_prompt = state['llm'].invoke(prompt).content
+    refine_flipside_query_prompt = log_llm_call(prompt, state['llm'], state['user_message_id'], 'RefineFlipsideQueryPrompt')
     log(f"refine_flipside_query_prompt: {refine_flipside_query_prompt}")
-    queries = rag_search_queries(refine_flipside_query_prompt, tokens + projects, top_k=40, n_queries=12)
+    queries = rag_search_queries(refine_flipside_query_prompt, tokens + projects, top_k=40, n_queries=15)
     return {'flipside_example_queries': queries, 'completed_tools': ['RefineFlipsideQueryPrompt']}

@@ -15,7 +15,8 @@ from utils.db import fs_load_data
 
 def check_decoded_flipside_tables(state: JobState) -> JobState:
     if len(state['program_ids']) == 0:
-        return {'use_decoded_flipside_tables': False, 'completed_tools': ["CheckDecodedFlipsideTables"]}
+        tables = [x for x in state['flipside_tables'] if not 'ez_events_decoded' in x]
+        return {'use_decoded_flipside_tables': False, 'flipside_tables': tables, 'completed_tools': ["CheckDecodedFlipsideTables"]}
     
     query = f"""
     with t0 as (
@@ -48,7 +49,9 @@ def check_decoded_flipside_tables(state: JobState) -> JobState:
     log(f'use_decoded_flipside_tables: {use_decoded_flipside_tables}')
     if len(df):
         start_timestamp = max(str(df.min_date.min())[:10], state['start_timestamp'])
+        tables = list(set(state['flipside_tables'] + ['solana.core.ez_events_decoded'])) if use_decoded_flipside_tables else state['flipside_tables']
         log(f'setting start_timestamp from {state["start_timestamp"]} -> {start_timestamp}')
-        return {'use_decoded_flipside_tables': use_decoded_flipside_tables, 'start_timestamp': start_timestamp, 'completed_tools': ["CheckDecodedFlipsideTables"]}
+        return {'use_decoded_flipside_tables': use_decoded_flipside_tables, 'start_timestamp': start_timestamp, 'flipside_tables': tables, 'completed_tools': ["CheckDecodedFlipsideTables"]}
     else:
-        return {'use_decoded_flipside_tables': use_decoded_flipside_tables, 'completed_tools': ["CheckDecodedFlipsideTables"]}
+        tables = [x for x in state['flipside_tables'] if not 'ez_events_decoded' in x]
+        return {'use_decoded_flipside_tables': False, 'flipside_tables': tables, 'completed_tools': ["CheckDecodedFlipsideTables"]}

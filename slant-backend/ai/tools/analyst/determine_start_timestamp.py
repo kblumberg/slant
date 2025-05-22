@@ -3,7 +3,7 @@ from utils.utils import log
 from classes.JobState import JobState
 from classes.Analysis import Analysis
 from utils.utils import clean_project_tag
-from ai.tools.utils.utils import parse_messages
+from ai.tools.utils.utils import parse_messages, log_llm_call
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 from datetime import datetime
 from ai.tools.utils.utils import state_to_reference_materials
@@ -36,7 +36,7 @@ def determine_start_timestamp(state: JobState) -> JobState:
     - Do not return any explanation or formatting—just the date or **"0"**
     """
 
-    start_timestamp = state['complex_llm'].invoke(prompt).content
+    start_timestamp = log_llm_call(prompt, state['llm'], state['user_message_id'], 'DetermineStartTimestamp')
     log(f"start_timestamp: {start_timestamp}")
     if start_timestamp == "0":
         start_timestamp = "2021-01-01"

@@ -7,7 +7,7 @@ from classes.Analysis import Analysis
 from ai.tools.utils.utils import read_schemas
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 from ai.tools.utils.utils import state_to_reference_materials
-
+from ai.tools.utils.utils import log_llm_call
 def flipside_determine_approach(state: JobState) -> JobState:
     reference_materials = state_to_reference_materials(state)
     raw_tables = '\n -'.join(state['raw_tables'])
@@ -26,6 +26,17 @@ def flipside_determine_approach(state: JobState) -> JobState:
               - {excluded_tables}
         """
     
+
+    previous_sql_queries = ''
+    if len(state['flipside_sql_queries']) > 1:
+        previous_sql_queries = '**Previous SQL Queries:**\n' + 'Here are the previous SQL queries that have been tried and did not produce successful results:\n'
+        for a, b, c in zip(state['flipside_sql_queries'][:-1], state['flipside_sql_query_results'][:-1], state['flipside_sql_errors'][:-1]):
+            prev_results = b.to_markdown() if len(b) <= 10 else pd.concat([b.head(5), b.tail(5)]).to_markdown()
+            results_text = '**Results** (first and last 5 rows):\n' + prev_results if len(b) > 0 else '**Results**: No rows returned'
+            error_text = '**Error**:\n' + c if c else ''
+            previous_sql_queries += f'**Query:**\n{a}\n{results_text}\n{error_text}\n\n'
+
+    
     prompt = f"""
     You are an expert crypto data scientist trained in the Flipside SQL database. Your task is to determine the best approach to analyze the user's analysis goal using raw tables. This output will be used to write a SQL query to analyze the user's analysis goal.
 
@@ -40,6 +51,8 @@ def flipside_determine_approach(state: JobState) -> JobState:
 
     {reference_materials}
 
+    {previous_sql_queries}
+
     ---
 
     **Instructions:**
@@ -53,9 +66,10 @@ def flipside_determine_approach(state: JobState) -> JobState:
       - the logic you will use to write the query
       - the structure of the query (e.g., CTEs, final query)
       - any important optimizations you will make to the query
+      - any important nuances or intricacies of the data you will need to consider (times to use DISTINCT, GROUP BY, etc.)
 
     Return only the summary.
     """
-    flipside_determine_approach = state['llm'].invoke(prompt).content
+    flipside_determine_approach = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'FlipsideDetermineApproachUsingRawTables')
     log(f"flipside_determine_approach: {flipside_determine_approach}")
     return {'flipside_determine_approach': flipside_determine_approach, 'completed_tools': ['FlipsideDetermineApproachUsingRawTables']}

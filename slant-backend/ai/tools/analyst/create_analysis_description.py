@@ -1,7 +1,7 @@
 import time
 from utils.utils import log
 from classes.JobState import JobState
-from ai.tools.utils.utils import parse_messages
+from ai.tools.utils.utils import parse_messages, log_llm_call
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def create_analysis_description(state: JobState) -> JobState:
@@ -46,7 +46,7 @@ def create_analysis_description(state: JobState) -> JobState:
     )
     # log('formatted_prompt')
     # log(formatted_prompt)
-    response = state['complex_llm'].invoke(formatted_prompt).content
+    response = log_llm_call(formatted_prompt, state['llm'], state['user_message_id'], 'CreateAnalysisDescription')
     summary = parse_json_from_llm(response, state['llm'], to_json=False)
     log('create_analysis_description')
     log(summary)

@@ -35,6 +35,7 @@ class JobState(TypedDict):
     investigation_flipside_sql_errors: Annotated[List[str], append]
     flipside_sql_queries: Annotated[List[str], append]
     investigation_flipside_sql_queries: Annotated[List[str], append]
+    flipside_investigations: List[any]
     flipside_sql_query_results: Annotated[List[pd.DataFrame], append]
     investigation_flipside_sql_query_results: Annotated[List[pd.DataFrame], append]
     flipside_sql_error: str

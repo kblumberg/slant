@@ -3,7 +3,7 @@ import time
 from utils.utils import log
 from classes.JobState import JobState
 from langchain.schema import SystemMessage, HumanMessage
-from ai.tools.utils.utils import get_web_search, rag_search_tweets
+from ai.tools.utils.utils import get_web_search, rag_search_tweets, log_llm_call
 
 def tool_executor(state: JobState):
     additional_contexts = []
@@ -61,6 +61,6 @@ def tool_executor(state: JobState):
             follow_up_questions='\n'.join(state['follow_up_questions']),
             additional_contexts_text=additional_contexts_text
         )
-        additional_context_summary = state['llm'].invoke(formatted_prompt).content
+        additional_context_summary = log_llm_call(formatted_prompt, state['llm'], state['user_message_id'], 'ToolExecutor')
         log(f'additional_context_summary:\n{additional_context_summary}')
     return {'additional_context_summary': additional_context_summary, 'completed_tools': ['ToolExecutor'], 'tried_tools': tried_tools}

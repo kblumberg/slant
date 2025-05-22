@@ -2,6 +2,7 @@ import time
 from utils.utils import log
 from classes.GraphState import GraphState
 from langchain.schema import SystemMessage, HumanMessage
+from ai.tools.utils.utils import log_llm_call, parse_messages_fn
 
 def prompt_refiner_for_flipside_sql(state: GraphState) -> str:
     start_time = time.time()
@@ -25,7 +26,7 @@ def prompt_refiner_for_flipside_sql(state: GraphState) -> str:
         """)
     ]
 
-    response = state['llm'].invoke(messages).content
+    response = log_llm_call(parse_messages_fn(messages), state['llm'], state['user_message_id'], 'PromptRefinerForFlipsideSql')
     time_taken = round(time.time() - start_time, 1)
     # log(f'prompt_refiner_for_flipside_sql finished in {time_taken} seconds')
     # log(response)

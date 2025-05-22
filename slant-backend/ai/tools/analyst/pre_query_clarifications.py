@@ -2,7 +2,7 @@ import time
 from utils.utils import log
 from classes.JobState import JobState
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
-
+from ai.tools.utils.utils import log_llm_call
 def pre_query_clarifications(state: JobState) -> JobState:
 
     start_time = time.time()
@@ -50,7 +50,7 @@ def pre_query_clarifications(state: JobState) -> JobState:
     )
     # log('pre_query_clarifications formatted_prompt')
     # log(formatted_prompt)
-    response = state['reasoning_llm'].invoke(formatted_prompt).content
+    response = log_llm_call(formatted_prompt, state['reasoning_llm'], state['user_message_id'], 'PreQueryClarifications')
     response = parse_json_from_llm(response, state['llm'], to_json=False)
     # log('pre_query_clarifications response')
     # log(response)

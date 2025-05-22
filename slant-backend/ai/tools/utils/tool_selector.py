@@ -3,6 +3,7 @@ import time
 from utils.utils import log
 from classes.JobState import JobState
 from langchain.schema import SystemMessage, HumanMessage
+from ai.tools.utils.utils import log_llm_call, parse_messages_fn
 
 def tool_selector(state: JobState):
     # Construct prompt dynamically based on state
@@ -76,7 +77,7 @@ def tool_selector(state: JobState):
     ]
 
     # Call LLM to get the decision
-    response = state['reasoning_llm'].invoke(messages).content
+    response = log_llm_call(parse_messages_fn(messages), state['reasoning_llm'], state['user_message_id'], 'ToolSelector')
     try:
         tools = json.loads(response)
         if not isinstance(tools, list):

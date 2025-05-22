@@ -3,6 +3,7 @@ import time
 from utils.utils import log
 from classes.GraphState import GraphState
 from langchain.schema import SystemMessage, HumanMessage
+from ai.tools.utils.utils import log_llm_call, parse_messages_fn
 
 def parse_timestamp(state: GraphState):
     # parse the query for a start timestamp
@@ -32,7 +33,7 @@ def parse_timestamp(state: GraphState):
         - If no time period is mentioned or implied, respond with -1.
         """)
     ]
-    response = state['llm'].invoke(messages).content
+    response = log_llm_call(parse_messages_fn(messages), state['llm'], state['user_message_id'], 'ParseTimestamp')
     # log('parse_start_timestamp llm response')
     # log(response)
     time_taken = round(time.time() - start_time, 1)
@@ -87,7 +88,7 @@ def tool_selector(state: GraphState):
 
 
     # Call LLM to get the decision
-    response = state['llm'].invoke(messages).content
+    response = log_llm_call(parse_messages_fn(messages), state['llm'], state['user_message_id'], 'ToolSelector')
     # log('tool_selector llm response')
     # log(response)
     time_taken = round(time.time() - start_time, 1)

@@ -11,7 +11,7 @@ from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_fl
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
-from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.utils.utils import state_to_reference_materials, log_llm_call
 from utils.db import fs_load_data
 
 def flipside_check_query_subset(state: JobState) -> JobState:
@@ -38,7 +38,7 @@ def flipside_check_query_subset(state: JobState) -> JobState:
         Return ONLY the raw SQL (no extra text):
     """
 
-    sql_query = state['llm'].invoke(prompt).content
+    sql_query = log_llm_call(prompt, state['llm'], state['user_message_id'], 'FlipsideCheckQuerySubset')
 
     # Remove SQL code block markers if present
     sql_query = parse_json_from_llm(sql_query, state['llm'], to_json=False)

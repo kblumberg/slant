@@ -3,7 +3,7 @@ import time
 from utils.utils import log
 from classes.JobState import JobState
 from langchain.schema import SystemMessage, HumanMessage
-from ai.tools.utils.utils import parse_messages
+from ai.tools.utils.utils import parse_messages, log_llm_call, parse_messages_fn
 
 def twitter_prompt_refiner(state: JobState):
     message_history = parse_messages(state)
@@ -34,7 +34,7 @@ def twitter_prompt_refiner(state: JobState):
     ]
 
     # Call LLM to get the decision
-    response = state['llm'].invoke(messages).content
+    response = log_llm_call(parse_messages_fn(messages), state['llm'], state['user_message_id'], 'TwitterPromptRefiner')
     # log(response)
     # log('response')
     # Handle potential JSON parsing errors
@@ -93,7 +93,7 @@ def prompt_refiner(state: JobState):
     ]
 
     # Call LLM to get the decision
-    response = state['llm'].invoke(messages).content
+    response = log_llm_call(parse_messages_fn(messages), state['llm'], state['user_message_id'], 'PromptRefiner')
     # log(response)
     # log('response')
     # Handle potential JSON parsing errors

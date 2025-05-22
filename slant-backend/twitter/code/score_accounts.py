@@ -4,6 +4,8 @@ import numpy as np
 from utils.twitter import get_user_tweets
 from datetime import datetime, timedelta
 from utils.db import pg_load_data, pg_execute_query
+import psycopg2
+from constants.keys import POSTGRES_ENGINE
 
 def score_accounts():
 	# query = 'ALTER TABLE twitter_kols ADD COLUMN score float DEFAULT 0'
@@ -21,15 +23,17 @@ def score_accounts():
 		, coalesce(tk.ecosystem, p.ecosystem) as ecosystem
 		, t.id as tweet_id
 		, coalesce(t.impression_count, 0) as impression_count
+		, coalesce(t.impression_count, 0) * case when t.created_at > {days_30_ago} then 1.0 else 0.5 end as impression_count_adjusted
 		, coalesce(t.retweet_count, 0) as retweet_count
-		, row_number() over (partition by tk.id order by t.impression_count desc) as rn
+		, row_number() over (partition by tk.id order by coalesce(t.impression_count, 0) * case when t.created_at > {days_30_ago} then 1 else 0.5 end desc) as rn
 		, count(1) over (partition by tk.id) as n_tweets
 		FROM twitter_kols tk
 		left join tweets t
 			on tk.id = t.author_id
-			and t.created_at > {days_30_ago}
+			and t.created_at > {days_60_ago}
 		left join referenced_tweets rt
 			on t.id = rt.id
+			and t.author_id != rt.author_id
 		left join projects p
 			on tk.associated_project_id = p.id
 		where 
@@ -37,35 +41,40 @@ def score_accounts():
 			and rt.id is null
 	"""
 	tweets = pg_load_data(query)
+	tweets['impression_count_adjusted'] = tweets['impression_count'].astype(float)
 	len(tweets)
 	
-	g = tweets[((tweets.rn >= 5) & (tweets.rn <= 15)) | ((tweets.n_tweets <= 10) & (tweets.rn <= 10))].groupby(['id','username','ecosystem']).agg({'tweet_id':'count', 'impression_count':'sum', 'retweet_count':'sum'}).reset_index()
+	g = tweets[((tweets.rn >= 5) & (tweets.rn <= 15)) | ((tweets.n_tweets <= 10) & (tweets.rn <= 10))].groupby(['id','username','ecosystem']).agg({'tweet_id':'count', 'impression_count_adjusted':'sum', 'retweet_count':'sum'}).reset_index()
 	g.columns = ['id','username','ecosystem','n_tweets','total_impressions','total_retweets']
-	g['score'] = (g.total_impressions * g.n_tweets / (g.n_tweets + 2)) ** 0.7
+	g['score'] = (g.total_impressions * g.n_tweets / (g.n_tweets + 2.0)) ** 0.7
 	g.loc[g.ecosystem != 'solana', 'score'] = g.score * 0.25
-	q99 = g.score.quantile(0.99)
+	q99 = g.score.quantile(0.97)
 	g = g.sort_values('score', ascending=False)
 	g.loc[g.score > q99, 'score'] = q99
 	g['score'] = (g.score * 100 / q99).apply(lambda x: round(x, 2))
 	g = g[g.score > 0]
 	g[g.username == 'runkellen']
-	g.head(20)
+	g.head(30)
 
 
+	# Update KOL scores
 	query = 'UPDATE twitter_kols SET score = 0'
 	pg_execute_query(query)
 
-	it = 0
-	tot = len(g)
-	for row in g[['id','username','score','ecosystem']].itertuples():
-		it += 1
-		print(it, '/', tot)
-		query = f"""
-			UPDATE twitter_kols
-			SET score = {row.score}
-			WHERE id = {row.id}
-		"""
-		pg_execute_query(query)
+	conn = psycopg2.connect(POSTGRES_ENGINE)
+	cursor = conn.cursor()
+
+	update_query = """
+		UPDATE twitter_kols
+		SET score = %s
+		WHERE id = %s
+	"""
+	values = [(row.score, row.id) for row in g.itertuples()]
+
+	cursor.executemany(update_query, values)
+
+	conn.commit()
+	conn.close()
 
 
 def score_projects():

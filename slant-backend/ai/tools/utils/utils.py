@@ -1,4 +1,5 @@
 import json
+import re
 import pandas as pd
 from utils.utils import log
 from classes.JobState import JobState
@@ -9,13 +10,40 @@ from tavily import TavilyClient
 from solana.rpc.api import Client
 from constants.keys import SOLANA_RPC_URL
 from solana.transaction import Signature
+from utils.db import pg_upload_data
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from datetime import datetime
+import time
+from langchain_core.messages import BaseMessage
+
+def log_llm_call(prompt: str, llm: ChatOpenAI | ChatAnthropic, user_message_id: str, function_name: str) -> str:
+    start_time = time.time()
+    log(f'LLM call: {function_name} {format(len(prompt), ",")}')
+    response = llm.invoke(prompt)
+    end_time = time.time()
+    # log(f'LLM response: {response}')
+    cur = pd.DataFrame([{
+        'user_message_id': user_message_id,
+        'function_name': function_name,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'llm': llm.__class__.__name__,
+        'prompt': prompt,
+        'model_name': response.response_metadata['model_name'],
+        'input_tokens': response.usage_metadata['input_tokens'],
+        'output_tokens': response.usage_metadata['output_tokens'],
+        'response': response.content,
+        'duration': round(end_time - start_time, 2)
+    }])
+    pg_upload_data(cur, 'llm_calls')
+    return response.content
 
 
 def get_flipside_schema_data(include_tables: list[str] = [], include_performance_notes: bool = False):
     # current_dir = os.path.dirname(os.path.abspath(__file__))
     current_dir = '.'
-    include_tables = []
-    df = pd.read_csv(f'{current_dir}/data/flipside_columns.csv')[['table_schema','table_name','table','column_name','data_type','column_description','example_values','ordinal_position','ignore_column','ignore_description']]
+    # include_tables = []
+    df = pd.read_csv(f'{current_dir}/data/flipside_columns.csv')[['table_schema','table_name','table','column_name','data_type','column_description','example_values','usage_tips','ordinal_position','ignore_column','ignore_description']]
     flipside_tables = pd.read_csv(f'{current_dir}/data/flipside_tables.csv')[['table','description']]
     flipside_table_notes = pd.read_csv(f'{current_dir}/data/flipside_table_usage_notes.csv')[['table','usage_note']]
     df = df[df.ignore_column == 0]
@@ -38,8 +66,8 @@ def get_flipside_schema_data(include_tables: list[str] = [], include_performance
                 schema_text.append(f"**Description**: {flipside_table.description.values[0]}")
             if len(cur_notes) > 0:
                 schema_text.append(f"**Notes**:")
-                for _, row in cur_notes.iterrows():
-                    schema_text.append(f" - {row['usage_note']}")
+                for note in cur_notes.usage_note.unique():
+                    schema_text.append(f" - {note}")
             schema_text.append(f"**Columns**:")
             for _, row in cur[cur.table == table].sort_values(by='ordinal_position').iterrows():
                 col_info = f"- {row['column_name']} ({row['data_type']})"
@@ -47,6 +75,8 @@ def get_flipside_schema_data(include_tables: list[str] = [], include_performance
                     col_info += f": {row['column_description']}"
                 if not pd.isna(row['example_values']):
                     col_info += f" (Examples: {row['example_values']})"
+                if not pd.isna(row['usage_tips']):
+                    col_info += f" (Usage Tips: {row['usage_tips']})"
                 schema_text.append(col_info)
             schema_text.append("")  # Empty line between tables
     if include_performance_notes:
@@ -83,13 +113,16 @@ def get_refined_prompt(state: JobState):
     return refined_prompt[:390]
 
 def parse_messages(state: JobState):
+    return parse_messages_fn(state['messages'])
+
+def parse_messages_fn(messages: list[BaseMessage]):
     role_map = {
         "human": "USER",
         "ai": "ASSISTANT",
         "system": "SYSTEM"
     }
     messages = '\n'.join([
-        f"{role_map.get(m.type, m.type.upper())}: {m.content}" for m in state['messages']
+        f"{role_map.get(m.type, m.type.upper())}: {m.content}" for m in messages
     ])
     return messages
 
@@ -119,23 +152,6 @@ def get_optimization_sql_notes_for_flipside():
         ## Optimization Notes
         1. ALWAYS filter and join on `block_timestamp` when possible and appropriate to optimize performance because the tables are indexed on `block_timestamp`.
         2. If you are joining on `tx_id`, ALWAYS also join on `block_timestamp` as well to improve performance and put the join on `block_timestamp` first. e.g. `FROM table1 t1 JOIN table2 t2 ON t1.block_timestamp = t2.block_timestamp AND t1.tx_id = t2.tx_id`
-        3. AWLAYS put the joins and filters on `block_timestamp` first to optimize performance.
-            - Example A: 
-                Bad: `FROM table1 t1
-                WHERE t1.program_id = 'XXX'
-                AND t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())`
-                ->
-                Good: `FROM table1 t1
-                WHERE t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())
-                AND t1.program_id = 'XXX'`
-                Explanation:
-                - By putting the `block_timestamp` filter first, we can filter first on the indexed column, which can improve performance.
-            - Example B:
-                Bad: `FROM table1 t1 JOIN table2 t2 ON t1.tx_id = t2.tx_id AND t1.block_timestamp = t2.block_timestamp WHERE t1.program_id = 'XXX' and t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())`
-                ->
-                Good: `FROM table1 t1 JOIN table2 t2 ON t1.block_timestamp = t2.block_timestamp AND t1.tx_id = t2.tx_id WHERE t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE()) AND t1.program_id = 'XXX'`
-                Explanation:
-                - By putting the `block_timestamp` filter and join first, we can filter and join first on the indexed column, which can improve performance.
         3. Even when you are filtering one table for `block_timestamp`, filter the other table for `block_timestamp` as well to improve performance.
             - Example A:
                 Bad: 
@@ -171,6 +187,34 @@ def get_optimization_sql_notes_for_flipside():
                     AND t1.program_id = 'XXX'`
                 Explanation:
                 - By including the `block_timestamp` filter on the both tables, we can first filter the data on the indexed column, which can improve performance.
+        4. AWLAYS put ALL of the joins and filters on `block_timestamp` first before any of the other joins and filters to optimize performance.
+            - Example A: 
+                Bad: `FROM table1 t1
+                WHERE t1.program_id = 'XXX'
+                AND t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())`
+                ->
+                Good: `FROM table1 t1
+                WHERE t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())
+                AND t1.program_id = 'XXX'`
+                Explanation:
+                - By putting the `block_timestamp` filter first, we can filter first on the indexed column, which can improve performance.
+            - Example B:
+                Bad: `FROM table1 t1
+                JOIN table2 t2
+                    ON t1.tx_id = t2.tx_id
+                    AND t1.block_timestamp = t2.block_timestamp
+                WHERE t1.program_id = 'XXX'
+                    AND t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())`
+                ->
+                Good: `FROM table1 t1
+                JOIN table2 t2
+                    ON t1.block_timestamp = t2.block_timestamp
+                    AND t1.tx_id = t2.tx_id
+                WHERE t1.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())
+                    AND t2.block_timestamp >= DATEADD(day, -30, CURRENT_DATE())
+                    AND t1.program_id = 'XXX'`
+                Explanation:
+                - By putting the `block_timestamp` filter and join first, we can filter and join first on the indexed column, which can improve performance.
     """
 
 def get_other_info():
@@ -184,8 +228,12 @@ def get_other_info():
 def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], preface: str = '', use_summary = False, include_keys: list[str] = [], include_performance_notes: bool = False):
     additional_context = '## 📚 Reference Materials\n\n'
 
-
+    log(f'state["flipside_tables"]: {state["flipside_tables"]}')
+    log(f'state["flipside_investigations"]:')
+    log(state["flipside_investigations"])
     schema = get_flipside_schema_data(state['flipside_tables'], include_performance_notes)
+    state['schema'] = schema
+    log(f'schema length: {len(schema)}')
 
     if preface:
         additional_context = additional_context + preface + '\n\n'
@@ -194,7 +242,8 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
         exclude_keys = exclude_keys + ['tweets', 'web_search_results', 'projects', 'additional_context_summary']
         additional_context = additional_context + '**RELATED INFORMATION**: \n' + 'These are just recommendations, not requirements. Factor other information into your analysis, but use this if it is helpful:\n\n' + state['context_summary']
 
-    possible_keys = ['tweets_summary', 'web_search_summary', 'projects', 'flipside_example_queries','schema','transactions','additional_context_summary','other_info','program_ids','flipside_determine_approach','start_timestamp']
+    # possible_keys = ['tweets_summary', 'web_search_summary', 'projects', 'flipside_example_queries','schema','transactions','additional_context_summary','other_info','program_ids','flipside_determine_approach','start_timestamp']
+    possible_keys = ['tweets_summary', 'web_search_summary', 'projects', 'flipside_example_queries','schema','transactions','additional_context_summary','other_info','program_ids','flipside_determine_approach','flipside_investigations']
     transaction_text = """
         - Use the following example transactions for inspiration and to understand what the correct addresses, program ids, etc. are.
         - Prioritize this information over the other reference materials, since it is provided directly from the user
@@ -203,20 +252,40 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
         Transactions:
     """
     indices = state['flipside_subset_example_queries']
-    flipside_example_queries = state['flipside_example_queries'].text.apply(lambda x: x[:10000]).values
-    flipside_example_queries = '\n'.join([flipside_example_queries[i] for i in indices])
+    log(f'indices: {indices}')
+    queries_text = state['flipside_example_queries'].text.apply(lambda x: x[:10000]).values
+    flipside_example_queries = ''
+    for i in range(len(indices)):
+        ind = indices[i]
+        flipside_example_queries = flipside_example_queries + '### Example Query #' + str(i + 1) + ':\n' + queries_text[ind] + '\n\n'
+    log(f'flipside_example_queries length: {len(flipside_example_queries)}')
+    def flipside_investigations_text(state: JobState):
+        if len(state['flipside_investigations']) == 0:
+            return ''
+        val = 'Here are some light investigatory queries we have written with the results to help you understand the data. You can use this information to get a better understanding of the data and to help you write your own queries:\n\n'
+        for i in state['flipside_investigations']:
+            if i['load_time'] > 0:
+                if len(i['result']) > 0:
+                    result = i['result'].to_markdown() if len(i['result']) <= 10 else pd.concat([i['result'].head(5), i['result'].tail(5)]).to_markdown()
+                    val = val + f"""Query: {i['query']}\nResult sample (first and last 5 rows): {result}"""
+                elif i['error']:
+                    val = val + f"""Query: {i['query']}\nError: {i['error']}"""
+                else:
+                    val = val + f"""Query: {i['query']}\nResult: No rows returned"""
+        return val
     d = {
         'tweets_summary': ('SUMMARY OF TWEETS', '', None)
         , 'web_search_summary': ('SUMMARY OF WEB SEARCH RESULTS', '', None)
         , 'projects': ('PROJECTS', '', lambda state: '\n'.join([ str(project.name) + ': ' + str(project.description) for project in state['projects']]))
-        , 'flipside_example_queries': ('RELATED FLIPSIDE QUERIES', 'Here are some example queries written by other analysts. They may not be respresent the best or most optimized way to approach your analysis, but feel free to use them for inspiration and to understand available schema and patterns, incorporating them into your query if you think they are helpful:\n\n', lambda state: flipside_example_queries)
-        , 'schema': ('FLIPSIDE DATA SCHEMA', '', lambda state: schema)
+        , 'flipside_example_queries': ('RELATED FLIPSIDE QUERIES', 'Here are some example queries written by other analysts. They may not be respresent the best or most optimized way to approach your analysis, but feel free to use them for inspiration and to understand available schema and patterns, incorporating them into your query if you think they are helpful. If you know how to write the query just using the schemas and other reference materials, feel free to ignore these queries:\n\n', lambda state: flipside_example_queries)
+        , 'schema': ('FLIPSIDE DATA SCHEMA', '', None)
         , 'transactions': ('EXAMPLE TRANSACTIONS', transaction_text, lambda state: '\n'.join([ str(transaction) for transaction in state['transactions']]))
         , 'additional_context_summary': ('ADDITIONAL CONTEXT', '', None)
         , 'program_ids': ('PROGRAM IDS', 'These are the program ids that will be used to analyze the user\'s analysis goal\n\n', lambda state: '\n'.join(state['program_ids']))
-        , 'flipside_determine_approach': ('FLIPSIDE DETERMINE APPROACH USING RAW TABLES', 'Here is the approach we will take to analyze the user\'s analysis goal using raw tables **prioritize this information over the other reference materials**:\n\n', None)
+        , 'flipside_determine_approach': ('RECOMMENDED SQL APPROACH', 'Here is the approach we recommend to write the Flipside SQL query to analyze the user\'s analysis goal using raw tables. Generally try to adhere to this approach, but feel free to deviate if you think it is more appropriate:\n\n', None)
         , 'other_info': ('OTHER INFO', get_other_info(), None)
         , 'start_timestamp': ('START TIMESTAMP', 'Your SQL query should start at this timestamp. Prioritize this information over the other reference materials:\n\n', None)
+        , 'flipside_investigations': ('SAMPLE FLIPSIDE RESULTS', '', flipside_investigations_text)
     }
     keys = [k for k in possible_keys if k not in exclude_keys]
     keys = [k for k in keys if k in include_keys or len(include_keys) == 0]
@@ -329,3 +398,12 @@ def parse_tx(tx_id: str):
         'instructions': instructions,
         'logMessages': logMessages
     }
+
+def remove_sql_comments(sql: str) -> str:
+    # Remove multi-line comments (/* ... */)
+    sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+    # Remove single-line comments (-- ...)
+    sql = re.sub(r'--.*$', '', sql, flags=re.MULTILINE)
+    # Optionally strip out empty lines
+    sql = '\n'.join(line for line in sql.splitlines() if line.strip())
+    return sql

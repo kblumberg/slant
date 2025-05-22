@@ -8,8 +8,7 @@ from langchain_openai import OpenAIEmbeddings
 from utils.db import PINECONE_API_KEY, pg_load_data
 from classes.TweetSearchParams import TweetSearchParams
 from classes.JobState import JobState
-from ai.tools.utils.prompt_refiner import twitter_prompt_refiner
-from ai.tools.utils.utils import get_refined_prompt
+from ai.tools.utils.utils import log_llm_call
 
 def summarize_web_search(state: JobState) -> JobState:
     prompt = """
@@ -42,6 +41,6 @@ def summarize_web_search(state: JobState) -> JobState:
         analysis_description=state['analysis_description'],
         web_search_results='\n'.join([str(x)[:15000] for x in state['web_search_results']])[:35000]
     )
-    web_search_summary = state['llm'].invoke(formatted_prompt).content
+    web_search_summary = log_llm_call(formatted_prompt, state['llm'], state['user_message_id'], 'SummarizeWebSearch')
     log(f'web_search_summary:\n{web_search_summary}')
     return {'web_search_summary': web_search_summary, 'completed_tools': ['SummarizeWebSearch']}

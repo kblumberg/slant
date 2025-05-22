@@ -3,6 +3,7 @@ import time
 import pandas as pd
 from utils.utils import log
 from classes.JobState import JobState
+from ai.tools.utils.utils import log_llm_call
 
 def validate_and_clean_highcharts_json(config_str: str) -> str:
     """
@@ -79,7 +80,7 @@ def format_for_highcharts(state: JobState) -> JobState:
     """ if len(categorical_columns) else ""
     log(f'number_columns: {number_columns}')
     log(f'categorical_columns: {categorical_columns}')
-    categories = '", "'.join(state['flipside_sql_query_result']['category'].unique().tolist()) if 'category' in state['flipside_sql_query_result'].columns else []
+    categories = '", "'.join([str(s) for s in state['flipside_sql_query_result']['category'].unique().tolist()]) if 'category' in state['flipside_sql_query_result'].columns else []
     is_categorical = 1 if 'category' in state['flipside_sql_query_result'].columns else 0
     xAxis = f"""
         {{ "categories": ["{categories}"] }}
@@ -193,7 +194,7 @@ Using the provided dataset, generate a **list of fully functional Highcharts con
     #     openai_api_key=OPENAI_API_KEY,
     #     temperature=0.0
     # )
-    raw_config = state['reasoning_llm'].invoke(prompt).content
+    raw_config = log_llm_call(prompt, state['complex_llm'], state['user_message_id'], 'FormatForHighcharts')
     highcharts_configs = validate_and_clean_highcharts_json(raw_config)
     log('format_for_highcharts highcharts_configs')
     log(highcharts_configs)

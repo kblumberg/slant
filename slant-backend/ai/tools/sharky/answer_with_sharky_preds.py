@@ -3,7 +3,7 @@ import time
 from utils.utils import log
 from utils.db import pg_load_data
 from classes.GraphState import GraphState
-
+from ai.tools.utils.utils import log_llm_call
 def answer_with_sharky_preds(state: GraphState) -> GraphState:
     # log('\n')
     # log('='*20)
@@ -119,7 +119,7 @@ def answer_with_sharky_preds(state: GraphState) -> GraphState:
     """
 
     # Call LLM to get the decision
-    answer = state['llm'].invoke(prompt).content
+    answer = log_llm_call(prompt, state['llm'], state['user_message_id'], 'AnswerWithSharkyPreds')
     time_taken = round(time.time() - start_time, 1)
     # log(f'answer_with_sharky_preds finished in {time_taken} seconds')
     return {'sharky_agent_answer': answer, 'completed_tools': ["SharkyAgent"], 'upcoming_tools': ["RespondWithContext"]}

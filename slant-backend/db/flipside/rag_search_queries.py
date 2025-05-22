@@ -3,7 +3,7 @@ from datetime import datetime
 from utils.db import pc_execute_query
 from utils.utils import log
 
-def rag_search_queries(query: str, project_tags: list[str], top_k: int = 40, n_queries: int = 12) -> pd.DataFrame:
+def rag_search_queries(query: str, project_tags: list[str], top_k: int = 40, n_queries: int = 15) -> pd.DataFrame:
     metadata_cols = ['text', 'tables', 'user_id', 'dashboard_id', 'created_at', 'project_tags']
     cur_0 = pc_execute_query(query, index_name="slant", namespace="flipside_queries", filter_conditions={'project_tags': {'$in': project_tags}}, top_k=top_k)
     cur_1 = pc_execute_query(query, index_name="slant", namespace="flipside_queries", top_k=top_k)

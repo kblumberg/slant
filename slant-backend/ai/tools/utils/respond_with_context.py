@@ -3,6 +3,7 @@ from utils.utils import log
 from datetime import datetime
 from classes.JobState import JobState
 from langchain.schema import SystemMessage, HumanMessage
+from ai.tools.utils.utils import log_llm_call, parse_messages_fn
 
 def respond_with_context(state: JobState):
     start_time = time.time()
@@ -24,7 +25,7 @@ def respond_with_context(state: JobState):
         ]
 
         # Call LLM to get the decision
-        response = state['llm'].invoke(messages).content
+        response = log_llm_call(parse_messages_fn(messages), state['llm'], state['user_message_id'], 'RespondWithContext')
         time_taken = round(time.time() - start_time, 1)
         # log(f'respond_with_context finished in {time_taken} seconds')
         return {'response': response, 'completed_tools': ["RespondWithContext"]}
@@ -77,7 +78,7 @@ def respond_with_context(state: JobState):
         ]
 
         # Call LLM to get the decision
-        answer = state['reasoning_llm'].invoke(messages).content
+        answer = log_llm_call(parse_messages_fn(messages), state['complex_llm'], state['user_message_id'], 'RespondWithContext')
         time_taken = round(time.time() - start_time, 1)
         # log(f'answer_with_context finished in {time_taken} seconds')
         return {'response': answer, 'completed_tools': ["RespondWithContext"]}

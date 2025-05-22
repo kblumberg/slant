@@ -1,12 +1,12 @@
 from utils.utils import log
 from utils.db import pg_load_data
-from classes.GraphState import GraphState
+import pandas as pd
 
-def news_finder(state: GraphState) -> GraphState:
+def news_finder(start_timestamp: int) -> pd.DataFrame:
     # refined_query = prompt_refiner(state, 'Search a RAG database of projects.')
-    # state = {
-    #     'start_timestamp': 1742930531
-    # }
+    state = {
+        'start_timestamp': start_timestamp
+    }
     print('\n')
     print('='*20)
     print('\n')
@@ -18,29 +18,37 @@ def news_finder(state: GraphState) -> GraphState:
             SELECT coalesce(rt.referenced_tweet_id, t.id) as conversation_id
             , coalesce(tur.name, tu.name) as name
             , coalesce(tur.username, tu.username) as username
+            , concat('https://x.com/', coalesce(tur.username, tu.username), '/status/', coalesce(rt.referenced_tweet_id, t.id)) as twitter_url
+            , coalesce(tk.score, 0) as kol_score
+            , coalesce(tkr.score, 0) as kol_score_retweeter
             , max(t.retweet_count) as retweet_count
             , max(t.reply_count) as reply_count
             , max(t.like_count) as like_count
             , max(t.quote_count) as quote_count
             , max(t.impression_count) as impression_count
-            , count(distinct t.author_id) as n_retweeters
+            , count(distinct r.id) as n_retweeters
             , min(t.created_at) as created_at
             FROM tweets t
             left join referenced_tweets rt
-                on t.id = rt.id
-                and rt.referenced_tweet_type in ('retweeted','quoted')
+                on t.id = rt.referenced_tweet_id
+                -- and rt.referenced_tweet_type in ('retweeted','quoted')
                 and t.author_id != rt.author_id
             left join twitter_users tu
                 on t.author_id = tu.id
             left join twitter_users tur
                 on rt.author_id = tur.id
+            left join twitter_kols tk
+                on t.author_id = tk.id
+            left join twitter_kols tkr
+                on rt.author_id = tkr.id
             where 
-                t.created_at >= {state['start_timestamp']}
-            group by 1, 2, 3
-            order by n_retweeters desc, created_at desc
+                t.created_at >= {start_timestamp}
+            group by 1, 2, 3, 4, 5, 6
+            order by n_retweeters desc, impression_count desc
             limit 200
         )
         , t1 as (
+            -- get the text of the tweet
             select distinct coalesce(t2.text, t.text) as text
             , t0.*
             , EXTRACT(EPOCH FROM NOW())::INT as cur_timestamp
@@ -67,5 +75,6 @@ def news_finder(state: GraphState) -> GraphState:
         limit 25
     """
     news_df = pg_load_data(query)
-    # log(news_df)
-    return {'news_df': news_df[['text','twitter_url']], 'completed_tools': ["NewsFinder"], 'upcoming_tools': ["RespondWithContext"]}
+    log(news_df)
+    # return {'news_df': news_df[['text','twitter_url']], 'completed_tools': ["NewsFinder"], 'upcoming_tools': ["RespondWithContext"]}
+    return news_df

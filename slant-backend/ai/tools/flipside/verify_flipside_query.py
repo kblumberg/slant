@@ -10,7 +10,7 @@ from utils.flipside import extract_project_tags_from_user_prompt
 from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_flipside_sql
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
-from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.utils.utils import state_to_reference_materials, log_llm_call
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 
 def verify_flipside_query(state: JobState) -> JobState:
@@ -38,6 +38,63 @@ def verify_flipside_query(state: JobState) -> JobState:
         if not col in ['timestamp']:
             tot += state['flipside_sql_query_result'][col].sum()
     log(f'tot: {tot}')
+    if state['flipside_sql_attempts']:
+        log(f"First attempt")
+        
+        prompt = f"""
+        You are an expert in writing **correct, efficient, and idiomatic** Snowflake SQL queries for **blockchain analytics** using the **Flipside Crypto** database.
+
+        You will be given:
+        - A **description of the analysis**
+        - A **proposed SQL query**
+        - Reference **schema** and **example queries**
+        - Other **reference materials** to enrich your understanding of the analysis objective
+
+        ---
+
+        ## 🔍 Your Task
+
+        Carefully review the SQL query and evaluate:
+
+        1. **Correctness** – Does the query correctly fulfill the intended analysis?
+        2. **Results** – Will the results of this query pull the correct data to answer the analysis goal?
+
+        ---
+
+        ## 📘 Reference Materials
+        {state_to_reference_materials(state, exclude_keys=['tweets','web_search_results','projects','additional_contexts'], include_performance_notes=True)}
+
+        ---
+
+        ## 🧠 Inputs
+
+        **Analysis Goal:**  
+        {state['analysis_description']}
+
+
+        **Proposed SQL Query:**  
+        ```sql
+        {sql_query}
+        ```
+
+        ✍️ Output
+        Think carefully. If the proposed SQL query will produce the correct results, return an empty string.
+
+        Otherwise, return a single block of improved SQL that:
+        - Produces correct and complete results
+        - Is efficient and idiomatic
+        - Aligns with the analysis objective
+
+        Return only the raw SQL. No explanation or extra text. """
+        log(f"verify_flipside_query prompt:")
+        log(prompt)
+        sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'VerifyFlipsideQuery')
+        verified_flipside_sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
+        log(f"verified_flipside_sql_query query:")
+        log(verified_flipside_sql_query)
+
+        return {'verified_flipside_sql_query': verified_flipside_sql_query, 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
+
     if len(state['flipside_sql_query_result']) == 0 or tot == 0:
         log(f"No results from flipside query")
         prompt = f"""
@@ -108,62 +165,7 @@ def verify_flipside_query(state: JobState) -> JobState:
 
     else:
         return {'verified_flipside_sql_query': '', 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
-        prompt = f"""
-        You are an expert in writing **correct, efficient, and idiomatic** Snowflake SQL queries for **blockchain analytics** using the **Flipside Crypto** database.
-
-        You will be given:
-        - A **description of the analysis**
-        - A **SQL query**
-        - A **sample of the query results**
-        - Reference **schema** and **example queries**
-        - Other **reference materials** to enrich your understanding of the analysis objective
-
-        ---
-
-        ## 🔍 Your Task
-
-        Carefully review the SQL query and evaluate:
-
-        1. **Correctness** – Does the query correctly fulfill the intended analysis?
-        2. **Results** – Do the results answer the analysis goal?
-
-        ---
-
-        ## 📘 Reference Materials
-        {state_to_reference_materials(state, exclude_keys=['tweets','web_search_results','projects','additional_contexts'], include_performance_notes=True)}
-
-        ---
-
-        ## 🧠 Inputs
-
-        **Analysis Goal:**  
-        {state['analysis_description']}
-
-        {previous_sql_queries}
-
-        **SQL Query:**  
-        ```sql
-        {sql_query}
-        ```
-
-        **Results:** (first and last 20 rows)
-        ```
-        {results}
-        ```
-
-        ✍️ Output
-        Think carefully. If the results provide data that answers the analysis goal, return an empty string.
-
-        Otherwise, return a single block of improved SQL that:
-        - Produces correct and complete results
-        - Is efficient and idiomatic
-        - Aligns with the analysis objective
-
-        Return only the raw SQL. No explanation or extra text. """
-
-        return {'verified_flipside_sql_query': '', 'completed_tools': ["VerifyFlipsideQuery"], 'upcoming_tools': ["WriteFlipsideQuery"]}
-
-    sql_query = state['reasoning_llm'].invoke(prompt).content
+    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'VerifyFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()

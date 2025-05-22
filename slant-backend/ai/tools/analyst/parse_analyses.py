@@ -3,7 +3,7 @@ from utils.utils import log
 from classes.JobState import JobState
 from classes.Analysis import Analysis
 from utils.utils import clean_project_tag
-from ai.tools.utils.utils import parse_messages
+from ai.tools.utils.utils import parse_messages, log_llm_call
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def parse_analyses(state: JobState) -> JobState:
@@ -93,7 +93,7 @@ def parse_analyses(state: JobState) -> JobState:
                 start_time_4=1744462800,
                 start_time_5=current_timestamp - (30 * 86400)
             )
-            response = state['llm'].invoke(prompt).content
+            response = log_llm_call(prompt, state['llm'], state['user_message_id'], 'ParseAnalyses')
             log('parse_analyses response')
             log(response)
             j = parse_json_from_llm(response, state['llm'])

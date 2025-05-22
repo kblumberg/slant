@@ -10,12 +10,14 @@ from utils.flipside import extract_project_tags_from_user_prompt
 from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_flipside_sql
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
-from ai.tools.utils.utils import state_to_reference_materials, get_optimization_sql_notes_for_flipside
+from ai.tools.utils.utils import state_to_reference_materials, get_optimization_sql_notes_for_flipside, log_llm_call, get_flipside_schema_data
 
 def flipside_optimize_query_fn(state: JobState, flipside_sql_query: str) -> str:
 
     # flipside_sql_query = state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
     optimization_sql_notes = get_optimization_sql_notes_for_flipside()
+
+    schema = get_flipside_schema_data(state['flipside_tables'], include_performance_notes=True)
 
     prompt = f"""
         You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
@@ -36,7 +38,7 @@ def flipside_optimize_query_fn(state: JobState, flipside_sql_query: str) -> str:
         ---
 
         ## Flipside Data Schema
-        {state['schema']}
+        {schema}
 
         ---
 
@@ -51,7 +53,7 @@ def flipside_optimize_query_fn(state: JobState, flipside_sql_query: str) -> str:
     # log('flipside_optimize_query_fn')
     # log(prompt)
 
-    sql_query = state['reasoning_llm'].invoke(prompt).content
+    sql_query = log_llm_call(prompt, state['complex_llm'], state['user_message_id'], 'OptimizeFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
@@ -93,10 +95,10 @@ def optimize_flipside_query(state: JobState) -> JobState:
         Return ONLY the raw SQL (no extra text):
     """
 
-    sql_query = state['reasoning_llm'].invoke(prompt).content
+    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'OptimizeFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
-    log(f"write_flipside_query query:")
+    log(f"optimize_flipside_query query:")
     log(sql_query)
-    return {'flipside_sql_query': sql_query, 'completed_tools': ["WriteFlipsideQuery"], 'upcoming_tools': ["ExecuteFlipsideQuery"]}
+    return {'flipside_sql_query': sql_query, 'completed_tools': ["OptimizeFlipsideQuery"], 'upcoming_tools': ["ExecuteFlipsideQuery"]}

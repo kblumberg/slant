@@ -39,6 +39,7 @@ def execute_flipside_query(state: JobState) -> JobState:
     # log(df.head(3))
     if 'category' in df.columns:
         df = df[df.category.notnull()]
+        df['category'] = df['category'].apply(lambda x: str(x))
     if 'date_time' in df.columns:
         df = df[df.date_time.notnull()]
         df['timestamp'] = pd.to_datetime(df['date_time']).astype(int) // 10**6

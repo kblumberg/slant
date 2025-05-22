@@ -83,7 +83,7 @@ def pg_load_data(query, timeout_in_seconds=0, values=None):
 		df.columns = [x.lower() for x in df.columns]
 		return df
 	except Exception as e:
-		# log('pg_load_data error: {}'.format(e))
+		log('pg_load_data error: {}'.format(e))
 		return pd.DataFrame()
 
 def fs_load_data(query: str, timeout_minutes=3) -> tuple[pd.DataFrame, Exception, int]:
@@ -127,7 +127,7 @@ def fs_load_data(query: str, timeout_minutes=3) -> tuple[pd.DataFrame, Exception
 		df = pd.DataFrame(df.dict()['records'])
 		if '__row_index' in df.columns:
 			df = df.drop(columns=['__row_index'])
-		return df, '', round(time.time() - start_time, 1)
+		return df, '', round(time.time() - start_time, 2)
 	except Exception as e:
 		try:
 			# log('e.args')
@@ -138,10 +138,10 @@ def fs_load_data(query: str, timeout_minutes=3) -> tuple[pd.DataFrame, Exception
 			j = ast.literal_eval(s[1])
 			# log('j')
 			# log(j)
-			return pd.DataFrame(), j['message'], round(time.time() - start_time, 1)
+			return pd.DataFrame(), j['message'], round(time.time() - start_time, 2)
 		except Exception as e2:
 			# log(e2)
-			return pd.DataFrame(), e.args[0], round(time.time() - start_time, 1)
+			return pd.DataFrame(), e.args[0], round(time.time() - start_time, 2)
 
 def pg_upload_data(df, table, if_exists="append"):
 	engine = create_engine(POSTGRES_ENGINE)

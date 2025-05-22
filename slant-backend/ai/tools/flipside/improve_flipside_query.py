@@ -10,7 +10,7 @@ from utils.flipside import extract_project_tags_from_user_prompt
 from ai.tools.utils.prompt_refiner_for_flipside_sql import prompt_refiner_for_flipside_sql
 from constants.keys import OPENAI_API_KEY
 from langchain_openai import ChatOpenAI
-from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.utils.utils import state_to_reference_materials, log_llm_call
 
 def improve_flipside_query(state: JobState) -> JobState:
     reference_materials = state_to_reference_materials(state, include_performance_notes=True)
@@ -75,7 +75,7 @@ def improve_flipside_query(state: JobState) -> JobState:
     # Would you like me to help you add follow-up tools like structured diff checking, error classification, or self-scoring next?
 
 
-    sql_query = state['reasoning_llm'].invoke(prompt).content
+    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'ImproveFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()

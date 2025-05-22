@@ -49,17 +49,23 @@ from ai.tools.flipside.flipside_determine_approach import flipside_determine_app
 from ai.tools.flipside.flipside_check_query_subset import flipside_check_query_subset
 from ai.tools.flipside.flipside_subset_example_queries import flipside_subset_example_queries
 from ai.tools.utils.utils import get_flipside_schema_data
+from ai.tools.flipside.flipside_write_investigation_queries import flipside_write_investigation_queries
+from ai.tools.flipside.flipside_execute_investigation_queries import flipside_execute_investigation_queries
+
 def follow_up_questions_logic(state: JobState) -> str:
     log(f'follow_up_questions_logic:')
     log('follow_up_questions')
     log(state['follow_up_questions'])
     log(f'tried_tools: {state["tried_tools"]}')
     if len(state["follow_up_questions"]) == 0:
-        return "ContextSummarizer"
+        # no follow up questions
+        # begin query process
+        return "ExtractProgramIds"
     elif state["tried_tools"] == 0:
+        # use the tools to answer the question
         return "ToolSelector"
     else:
-        return "ContextSummarizer"
+        return "RespondWithContext"
 
 def post_check_decoded_flipside_tables_logic(state: JobState) -> str:
     log(f'post_check_decoded_flipside_tables_logic:')
@@ -67,7 +73,15 @@ def post_check_decoded_flipside_tables_logic(state: JobState) -> str:
     if state['use_decoded_flipside_tables']:
         return "WriteFlipsideQuery"
     else:
-        return "FlipsideSubsetExampleQueries"
+        return "DecideFlipsideTables"
+
+def post_flipside_execute_investigation_queries_logic(state: JobState) -> str:
+    log(f'post_flipside_execute_investigation_queries_logic:')
+    # first time go to DetermineApproach, otherwise go to VerifyFlipsideQuery
+    if state['approach'] == '':
+        return "DetermineApproach"
+    else:
+        return "VerifyFlipsideQuery"
 
 def post_write_flipside_query_logic(state: JobState) -> str:
     log(f'post_write_flipside_query_logic:')
@@ -94,7 +108,7 @@ def context_summarizer_logic(state: JobState) -> str:
     # log('context_summary')
     # log(state['context_summary'])
     if len(state["follow_up_questions"]) == 0:
-        return "DetermineApproach"
+        return "ExtractProgramIds"
     else:
         return "RespondWithContext"
 
@@ -174,15 +188,34 @@ def join_tools_gate_1(state: JobState) -> str:
     return "JoinTools1"
 
 def post_flipside_execution_logic(state: JobState) -> str:
+    log('post_flipside_execution_logic')
+
+    numerical_columns = state['flipside_sql_query_result'].select_dtypes(include=['number']).columns.tolist()
+    # cur = pd.DataFrame([{'category': 'a', 'num': 1}, {'category': 'b', 'num': 2}])
+    # numerical_columns = cur.select_dtypes(include=['number']).columns.tolist()
+    tot = 0
+    for col in numerical_columns:
+        if not col in ['timestamp']:
+            tot += state['flipside_sql_query_result'][col].sum()
+    no_results = len(state["flipside_sql_query_result"]) == 0 or tot == 0
+    log(f'no_results: {no_results}')
     if state["flipside_sql_attempts"] < MAX_FLIPSIDE_SQL_ATTEMPTS and state["flipside_sql_error"] and not 'QUERY_RUN_TIMEOUT_ERROR' in str(state["flipside_sql_error"]):
         # there is an error but it's not a timeout error
-        # and we have fewer than 3 attempts
+        # and we have not yet exhausted our attempts
+        log('there is an error but it\'s not a timeout error and we have not yet exhausted our attempts')
         return "FixFlipsideQuery"
+    elif state["flipside_sql_attempts"] < MAX_FLIPSIDE_SQL_ATTEMPTS and not state["flipside_sql_error"] and no_results:
+        # there is no error and no results
+        # and we have not yet exhausted our attempts
+        log('there is no error and no results and we have not yet exhausted our attempts')
+        return "FlipsideDetermineApproach"
     elif (state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS and state["flipside_sql_error"]) or 'QUERY_RUN_TIMEOUT_ERROR' in str(state["flipside_sql_error"]):
         # there is an error we cannot fix
+        log('there is an error we cannot fix')
         return "RespondWithContext"
     else:
         # we have successfully executed the query
+        log('we have successfully executed the query')
         return "VerifyFlipsideQuery"
 
 def verify_results_logic(state: JobState) -> str:
@@ -190,17 +223,21 @@ def verify_results_logic(state: JobState) -> str:
     log(f'state["flipside_sql_error"]: {state["flipside_sql_error"]}')
     log(f'state["verified_flipside_sql_query"]: {state["verified_flipside_sql_query"]}')
     log(f'state["flipside_sql_attempts"]: {state["flipside_sql_attempts"]}')
-    if state["verified_flipside_sql_query"].strip() == '' and len(state["flipside_sql_query_result"]) > 0:
+    if state["verified_flipside_sql_query"].strip() == '' and len(state["flipside_sql_query_result"]) > 0 and state["flipside_sql_attempts"] > 0:
         # the existing query and results are good
+        log('returning FormatForHighcharts')
         return "FormatForHighcharts"
     elif state["flipside_sql_attempts"] >= MAX_FLIPSIDE_SQL_ATTEMPTS:
         # we've exhausted our attempts
+        log('returning FormatForHighcharts')
         return "FormatForHighcharts"
     elif state["flipside_sql_error"]:
         # we have an error
+        log('returning FixFlipsideQuery')
         return "FixFlipsideQuery"
     else:
         # we have an updated version of the query
+        log('returning ExecuteFlipsideQuery')
         return "ExecuteFlipsideQuery"
 
 def wrap_node(fn, name=None):
@@ -243,7 +280,10 @@ def make_graph():
     builder.add_node("ExtractProgramIds", wrap_node(extract_program_ids))
     builder.add_node("DetermineApproach", wrap_node(determine_approach))
     builder.add_node("FlipsideDetermineApproach", wrap_node(flipside_determine_approach))
+    # TODO: we are hitting this multiple times
     builder.add_node("FlipsideSubsetExampleQueries", wrap_node(flipside_subset_example_queries))
+    builder.add_node("FlipsideWriteInvestigationQueries", wrap_node(flipside_write_investigation_queries))
+    builder.add_node("FlipsideExecuteInvestigationQueries", wrap_node(flipside_execute_investigation_queries))
     # builder.add_node("WriteFlipsideQueryOrInvestigateData", wrap_node(lambda state: {}))
     # builder.add_node("VerifyFlipsideQuery", wrap_node(lambda state: {}))
     builder.add_node("ImproveFlipsideQuery", wrap_node(improve_flipside_query))
@@ -314,14 +354,22 @@ def make_graph():
     builder.add_edge("ToolExecutor", "AskFollowUpQuestions")
     # builder.add_edge("AskFollowUpQuestions", "WriteFlipsideQueryOrInvestigateData")
     # builder.add_edge("WriteFlipsideQueryOrInvestigateData", "DetermineApproach")
-    builder.add_edge("FlipsideSubsetExampleQueries", "DecideFlipsideTables")
-    builder.add_edge("DecideFlipsideTables", "DetermineApproach")
-    builder.add_conditional_edges("DetermineApproach", post_determine_approach_logic)
     builder.add_edge("ExtractProgramIds", "DetermineStartTimestamp")
     builder.add_edge("DetermineStartTimestamp", "CheckDecodedFlipsideTables")
     builder.add_conditional_edges("CheckDecodedFlipsideTables", post_check_decoded_flipside_tables_logic)
+    # builder.add_edge("FlipsideSubsetExampleQueries", "DecideFlipsideTables")
+    builder.add_edge("DecideFlipsideTables", "FlipsideSubsetExampleQueries")
+    builder.add_edge("FlipsideSubsetExampleQueries", "FlipsideWriteInvestigationQueries")
+    builder.add_edge("FlipsideWriteInvestigationQueries", "FlipsideExecuteInvestigationQueries")
+    builder.add_conditional_edges("FlipsideExecuteInvestigationQueries", post_flipside_execute_investigation_queries_logic)
+    # builder.add_edge("FlipsideExecuteInvestigationQueries", "DetermineApproach")
+    # builder.add_conditional_edges("DetermineApproach", post_determine_approach_logic)
+    builder.add_edge("DetermineApproach", "FlipsideDetermineApproach")
     builder.add_edge("FlipsideDetermineApproach", "WriteFlipsideQuery")
-    builder.add_conditional_edges("WriteFlipsideQuery", post_write_flipside_query_logic)
+    builder.add_edge("WriteFlipsideQuery", "FlipsideWriteInvestigationQueries")
+    # builder.add_conditional_edges("FlipsideWriteInvestigationQueries", "FlipsideExecuteInvestigationQueries")
+    # builder.add_conditional_edges("FlipsideExecuteInvestigationQueries", post_write_flipside_query_logic)
+    # builder.add_conditional_edges("WriteFlipsideQuery", post_write_flipside_query_logic)
     builder.add_edge("FlipsideCheckQuerySubset", "ExecuteFlipsideQuery")
     # builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
     builder.add_edge("FixFlipsideQuery", "ExecuteFlipsideQuery")
@@ -381,14 +429,15 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     llm = ChatOpenAI(
         model="gpt-4.1-mini",
         openai_api_key=OPENAI_API_KEY,
-        temperature=0.01,
+        temperature=0.00,
     )
     complex_llm = ChatOpenAI(
         model="gpt-4.1",
         openai_api_key=OPENAI_API_KEY,
-        temperature=0.01,
+        temperature=0.00,
     )
     reasoning_llm = ChatOpenAI(
+        # model="gpt-4.1",
         model="o4-mini",
         # model="o1",
         openai_api_key=OPENAI_API_KEY
@@ -403,8 +452,11 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     #     schema = f.read()
     schema = get_flipside_schema_data()
 
-    curated_tables = ['solana.nft.ez_nft_sales','solana.nft.dim_nft_metadata','solana.nft.fact_nft_mints','solana.nft.fact_nft_mint_actions','solana.nft.fact_nft_burn_actions','solana.price.ez_prices_hourly','solana.price.ez_asset_metadata','solana.defi.ez_dex_swaps','solana.defi.ez_liquidity_pool_actions','solana.defi.fact_bridge_activity','solana.defi.fact_token_burn_actions','solana.defi.fact_token_mint_actions','solana.defi.fact_swaps_jupiter_inner','solana.defi.fact_stake_pool_actions','solana.gov.ez_staking_lp_actions','solana.gov.fact_block_production','solana.gov.fact_gauges_creates','solana.gov.fact_gauges_votes','solana.gov.fact_gov_actions','solana.gov.fact_proposal_creation','solana.gov.fact_proposal_votes','solana.gov.fact_rewards_fee','solana.gov.fact_rewards_rent','solana.gov.fact_rewards_staking','solana.gov.fact_rewards_voting','solana.gov.fact_validators','solana.gov.fact_votes_agg_block','solana.gov.fact_vote_accounts','solana.gov.dim_epoch','solana.gov.fact_stake_accounts','solana.stats.ez_core_metrics_hourly','crosschain.core.dim_dates','solana.core.dim_labels','solana.core.ez_signers']
-    raw_tables = ['solana.core.ez_events_decoded','solana.core.fact_transactions','solana.core.fact_transfers','solana.core.fact_decoded_instructions','solana.core.fact_events','solana.core.fact_events_inner','solana.core.fact_sol_balances','solana.core.fact_token_account_owners','solana.core.fact_token_balances']
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    flipside_tables = pd.read_csv(os.path.join(current_dir, "..", "..", "..", "data", "flipside_tables.csv"))
+
+    curated_tables = flipside_tables[flipside_tables['curated'] == 1]['table'].tolist()
+    raw_tables = flipside_tables[flipside_tables['curated'] == 0]['table'].tolist()
 
 
     state = JobState(
@@ -420,6 +472,7 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , analysis_description=''
         , messages=memory.messages
         , write_flipside_query_or_investigate_data=''
+        , flipside_investigations=[]
         , investigation_flipside_sql_queries=[]
         , investigation_flipside_sql_errors=[]
         , investigation_flipside_sql_query_results=[]
@@ -474,7 +527,7 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
 
     response = {}
     chunk = None
-    for chunk in graph.stream(state, stream_mode='values'):
+    for chunk in graph.stream(state, stream_mode='values', config={'recursion_limit': 50}):
         # log('UPDATING STATE')
         message = chunk.get('response')
         if message:
@@ -574,6 +627,11 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
                             if len(cur_subset):
                                 # chart_data.append({ 'name': series['name'], 'data': cur_subset })
                                 chart_data = cur_subset
+                        elif chart_type == 'x_category_y_value':
+                            # timestamp and no filter
+                            if series['name'] in categories:
+                                cur = cur[cur['category_clean'] == series['name'].lower().strip()]
+                            chart_data = cur[[x_col, column]].dropna().values.tolist()
                         elif chart_type == 'x_category_y_value_z_filter':
                             # timestamp and no filter
                             cur = cur[cur[filter_column] == filter_value]

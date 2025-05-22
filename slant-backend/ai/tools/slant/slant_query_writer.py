@@ -2,7 +2,7 @@ import os
 import time
 from utils.utils import log
 from classes.GraphState import GraphState
-
+from ai.tools.utils.utils import log_llm_call
 def slant_query_writer(state: GraphState) -> GraphState:
     """
     Writes a query to execute on a postgres database.
@@ -55,7 +55,7 @@ def slant_query_writer(state: GraphState) -> GraphState:
         Make sure to limit the number of rows returned to 10-15.
     """
 
-    sql_query = state['llm'].invoke(prompt).content
+    sql_query = log_llm_call(prompt, state['llm'], state['user_message_id'], 'SlantQueryWriter')
     # log(f"Generated SQL Query: {sql_query}")
     time_taken = round(time.time() - start_time, 1)
     # log(f'slant_query_writer finished in {time_taken} seconds')

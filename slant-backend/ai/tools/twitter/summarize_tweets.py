@@ -9,7 +9,7 @@ from utils.db import PINECONE_API_KEY, pg_load_data
 from classes.TweetSearchParams import TweetSearchParams
 from classes.JobState import JobState
 from ai.tools.utils.prompt_refiner import twitter_prompt_refiner
-from ai.tools.utils.utils import get_refined_prompt
+from ai.tools.utils.utils import get_refined_prompt, log_llm_call
 
 def summarize_tweets(state: JobState) -> JobState:
     prompt = """
@@ -25,6 +25,8 @@ def summarize_tweets(state: JobState) -> JobState:
     - Any emerging patterns, warnings, or alpha
 
     Be concise but precise. Avoid generalities. ONLY include tweet content that clearly relates to the user's specific analysis goal.
+
+    Do NOT include any text about what you don't know. If you do not have any valuable information to include, you can just return an empty string.
 
     CONTEXT: This summary will be used by a data analyst AI agent to guide further on-chain or off-chain analysis.
 
@@ -42,6 +44,6 @@ def summarize_tweets(state: JobState) -> JobState:
         analysis_description=state['analysis_description'],
         tweets='\n'.join([str(x)[:15000] for x in state['tweets']])[:35000]
     )
-    tweets_summary = state['llm'].invoke(formatted_prompt).content
+    tweets_summary = log_llm_call(formatted_prompt, state['llm'], state['user_message_id'], 'SummarizeTweets')
     log(f'tweets_summary:\n{tweets_summary}')
     return {'tweets_summary': tweets_summary, 'completed_tools': ['SummarizeTweets']}
