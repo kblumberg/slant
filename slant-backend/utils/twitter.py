@@ -72,7 +72,7 @@ def get_list_tweets(list_id="1896993199560032554", start_time=None, batch_size=2
 		"max_results": batch_size,
 		"tweet.fields": "author_id,created_at,text,public_metrics,referenced_tweets,conversation_id,in_reply_to_user_id",
 		"expansions": "author_id,referenced_tweets.id.author_id,referenced_tweets.id",
-		"user.fields": "username,public_metrics"
+		"user.fields": "username,public_metrics,profile_image_url"
 	}
 
 	tweets = []

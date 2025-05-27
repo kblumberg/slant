@@ -11,6 +11,45 @@ from classes.JobState import JobState
 from ai.tools.utils.prompt_refiner import twitter_prompt_refiner
 from ai.tools.utils.utils import get_refined_prompt
 
+def rag_search_tweets_fn(query: str, start_time: int = 0, end_time: int = 0, author_ids: list[int] = [], top_n_tweets: int = 20) -> list[Tweet]:
+    # Initialize Pinecone
+    pc = Pinecone(api_key=PINECONE_API_KEY)
+    index = pc.Index("slant", namespace="tweets")
+    
+    # Get embeddings for query
+    embeddings = OpenAIEmbeddings()
+    query_embedding = embeddings.embed_query(query)
+    filter_conditions = {
+        "created_at": {
+            "$gte": start_time,
+            "$lte": end_time if end_time > 0 else int(time.time())
+        }
+    }
+
+    # Conditionally include the "author_id" filter
+    if len(author_ids) > 0:
+        filter_conditions["author_id"] = {"$in": author_ids}
+
+    # Search Pinecone
+    results = index.query(
+        vector=query_embedding
+        , top_k=top_n_tweets
+        , include_metadata=True
+        , filter=filter_conditions
+        , namespace="tweets"
+    )
+
+    # log('results')
+    # log(results)
+    
+    # Format results
+    tweets = []
+    for match in results['matches']:
+        tweet = match.metadata
+        tweet['id'] = match['id']
+        tweets.append(Tweet.from_tweet(tweet))
+    return tweets
+
 def rag_search_tweets(state: JobState) -> JobState:
     refined_prompt = get_refined_prompt(state)
     start_time = time.time()
@@ -48,44 +87,9 @@ def rag_search_tweets(state: JobState) -> JobState:
     # log(f'params["start_time"]: {start_time}')
     # log(f'params["end_time"]: {end_time}')
 
-    # Initialize Pinecone
-    pc = Pinecone(api_key=PINECONE_API_KEY)
-    index = pc.Index("slant", namespace="tweets")
-    
-    # Get embeddings for query
-    embeddings = OpenAIEmbeddings()
-    query_embedding = embeddings.embed_query(refined_twitter_prompt)
-    filter_conditions = {
-        "created_at": {
-            "$gte": gte,
-            "$lte": end_time
-        }
-    }
-
-    # Conditionally include the "author_id" filter
-    if len(author_ids) > 0:
-        filter_conditions["author_id"] = {"$in": author_ids}
-
-    # Search Pinecone
-    results = index.query(
-        vector=query_embedding
-        , top_k=params["top_n_tweets"]
-        , include_metadata=True
-        , filter=filter_conditions
-        , namespace="tweets"
-    )
-
-    # log('results')
-    # log(results)
-    
-    # Format results
-    tweets = []
-    for match in results['matches']:
-        tweet = match.metadata
-        tweet['id'] = match['id']
-        tweets.append(Tweet.from_tweet(tweet))
     # log('tweets')
     # log(tweets)
+    tweets = rag_search_tweets_fn(refined_twitter_prompt, gte, end_time, author_ids, params["top_n_tweets"])
     new_tweets = list(state['tweets']) + tweets
     unique_tweets = {tweet.id: tweet for tweet in new_tweets}.values()
     time_taken = round(time.time() - start_time, 1)
