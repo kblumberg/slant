@@ -203,9 +203,10 @@ def upload_tweet_data(tweets, includes, tweets_includes):
 		"twitter_users", metadata,
 		Column("id", BigInteger),
 		Column("name", Text),
-		Column("username", Text)
+		Column("username", Text),
+		Column("profile_image_url", Text)
 	)
-	pg_upsert_data(twitter_users_df[['id','name','username']], twitter_users_table, engine, ['id'])
+	pg_upsert_data(twitter_users_df[['id','name','username','profile_image_url']], twitter_users_table, engine, ['id'])
 
 def pg_upsert_flipside_dashboards(dashboards: pd.DataFrame):
 	log('pg_upsert_flipside_dashboards')
