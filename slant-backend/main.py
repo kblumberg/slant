@@ -8,6 +8,7 @@ from ai.tools.analyst.analyst import ask_analyst
 from api.sharky.orderbooks import load_orderbooks
 from api.flipside.update_flipside_data import update_flipside_data
 from api.news.load_news import load_news
+from ai.tools.slant.news_finder import news_finder
 from flask import Flask, jsonify, request, Response, stream_with_context
 
 
@@ -65,6 +66,21 @@ def update_flipside_data_route():
         val = update_flipside_data()
         return jsonify({
             "message": f"Updated {val} flipside queries",
+            "code": 200
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/update_news', methods=['POST'])
+def update_news_route():
+    try:
+        data = request.get_json()
+        api_key = data.get("api_key")
+        if api_key != SLANT_API_KEY:
+            return jsonify({"error": "Invalid API key"}), 401
+        val = news_finder()
+        return jsonify({
+            "message": f"Finished finding news",
             "code": 200
         })
     except Exception as e:

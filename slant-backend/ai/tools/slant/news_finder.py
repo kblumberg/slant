@@ -4,15 +4,16 @@ import pandas as pd
 import time
 from news.generate_news import generate_news
 
-def news_finder(n_days: int) -> pd.DataFrame:
+def news_finder() -> pd.DataFrame:
     print('\n')
     print('='*20)
     print('\n')
     print('news_finder starting...')
     # print(f'params: {params}')
     # Ensure params is a dictionary
-    n_days = 1
-    for n_days in [1, 7, 30]:
+    current_hour = int(time.localtime().tm_hour)
+    days = [1, 7, 30] if current_hour == 5 else [1]
+    for n_days in days:
         start_timestamp = int(time.time()) - n_days * 24 * 60 * 60
         mult = 'greatest(1, (5/(hours_ago+0.6)) + 0.87)' if n_days == 1 else '1'
         mult = 'greatest(1, (5/(hours_ago+0.6)) + 0.87)'
