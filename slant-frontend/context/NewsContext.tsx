@@ -19,8 +19,13 @@ export const NewsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadNews = async () => {
       if (!news) {
-        const res = await fetch('http://localhost:5000/load_news');
+        console.log('Loading news...');
+        // const res = await fetch('http://localhost:5000/load_news');
+        const res = await fetch('https://slant-backend-production.up.railway.app/load_news');
+        console.log('News loaded');
+        console.log(res);
         const data = await res.json();
+        console.log('News data:', data);
         setNews(data.data);
       }
       setLoading(false);

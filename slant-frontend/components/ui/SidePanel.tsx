@@ -9,6 +9,7 @@ const navItems = [
   { label: 'News', emoji: '📰', path: '/news' },
   { label: 'Analytics', emoji: '📊', path: '/analytics' },
   { label: 'Research', emoji: '🔬', path: '/research' },
+  { label: 'Chat', emoji: '💬', path: '/chat' },
 ];
 
 const SidePanel = () => {
