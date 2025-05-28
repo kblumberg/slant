@@ -24,9 +24,9 @@ def log(message):
 def clean_project_tag(tag: str) -> str:
     try:
         tag = tag.lower()
-        phrases = [' ','.gg', '$', '_']
+        phrases = [' ','.gg', '$', '_','solana']
         for phrase in phrases:
-            tag = tag.replace(phrase, '')
+            tag = tag.replace(phrase, '') if phrase != tag else tag
         phrases = ['jupiter lfg','famous fox']
         for phrase in phrases:
             if tag[:len(phrase)] == phrase:

@@ -347,6 +347,7 @@ def pg_upsert_data(df, table, engine, index_elements=['id']):
 
 def clean_tweets_for_pc(df):
 	# remove twitter links
+    df['text'] = df['text'].apply(lambda x: x[:3500])
     df['text'] = df['text'].str.replace(r'https?://t\.co\S+', '', regex=True)
 
     # Remove any leftover whitespace
@@ -380,7 +381,10 @@ def get_content_for_twitter_kol(kol):
         {project_name}"""
 	return kol_text
 
-def load_tweets_for_pc(start_time = 0):
+def load_tweets_for_pc(start_time = 0, conversation_ids = []):
+	conversation_ids_str = ''
+	if len(conversation_ids) > 0:
+		conversation_ids_str = f"and t.id in ({','.join(map(str, conversation_ids))})"
 
 	# Query projects from Postgre
 	query = f"""
@@ -416,6 +420,7 @@ def load_tweets_for_pc(start_time = 0):
 			left join twitter_users tur
 				on rt.author_id = tur.id
 			where t.created_at >= {start_time}
+			{conversation_ids_str}
 		)
 		select *
 		from t0

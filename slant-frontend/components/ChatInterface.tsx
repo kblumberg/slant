@@ -9,8 +9,8 @@ import Message from '@/types/Message';
 // import type { SeriesOptionsType } from 'highcharts';
 
 import { motion, AnimatePresence } from "framer-motion";
-import HighchartsData from '@/types/HighchartsData';
-import HighchartsDataSeries from '@/types/HighchartsDataSeries';
+// import HighchartsData from '@/types/HighchartsData';
+// import HighchartsDataSeries from '@/types/HighchartsDataSeries';
 import ChatData from '@/types/ChatData';
 
 // const texts = [
@@ -81,7 +81,7 @@ interface ChatInterfaceProps {
 const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [inputText, setInputText] = useState('');
-	const [inputHeight, setInputHeight] = useState(0);
+	// const [inputHeight, setInputHeight] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
 	const [status, setStatus] = useState('Analyzing query');
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -97,7 +97,7 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 		if (textareaRef.current) {
 		  textareaRef.current.style.height = 'auto'; // reset height
 		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; // set to scrollHeight
-		  setInputHeight(textareaRef.current.scrollHeight);
+		//   setInputHeight(textareaRef.current.scrollHeight);
 		}
 	  };
 	

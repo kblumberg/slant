@@ -7,6 +7,7 @@ from scripts.update_tweets import update_tweets
 from ai.tools.analyst.analyst import ask_analyst
 from api.sharky.orderbooks import load_orderbooks
 from api.flipside.update_flipside_data import update_flipside_data
+from api.news.load_news import load_news
 from flask import Flask, jsonify, request, Response, stream_with_context
 
 
@@ -42,6 +43,15 @@ def update_tweets_route():
     val = update_tweets()
     return jsonify({
         "message": f"Updated {val} tweets",
+        "code": 200
+    })
+
+@app.route('/load_news')
+def load_news_route():
+    val = load_news()
+    return jsonify({
+        "message": f"Loaded {len(val)} news",
+        "data": val.to_dict(orient='records'),
         "code": 200
     })
 
