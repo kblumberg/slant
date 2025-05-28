@@ -7,7 +7,6 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 import type { ReactNode } from 'react';
 import "./globals.css";
 import { NewsProvider } from '@/context/NewsContext';
-import ChatPanel from '@/components/ui/ChatPanel';
 
 
 
