@@ -1,5 +1,9 @@
 import requests
 import logging
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -7,7 +11,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 def update_news():
     url = "https://slant-backend-production.up.railway.app/api/update_news"
     try:
-        response = requests.get(url)
+        data = {
+            'api_key': os.getenv('SLANT_API_KEY')
+        }
+        response = requests.post(url, json=data)
         if response.status_code == 200:
             logging.info("Successfully updated news.")
         else:

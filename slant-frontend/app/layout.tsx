@@ -1,33 +1,28 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// app/layout.tsx
+import Header from '@/components/ui/Header';
+import SidePanel from '@/components/ui/SidePanel';
+import { WalletContextProvider } from '@/components/WalletContextProvider';
+import '../styles/custom.css';
+import '@solana/wallet-adapter-react-ui/styles.css';
+import type { ReactNode } from 'react';
 import "./globals.css";
+import { NewsProvider } from '@/context/NewsContext';
+import ChatPanel from '@/components/ui/ChatPanel';
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
-export const metadata: Metadata = {
-  title: "Slant",
-  description: "The Intelligence Engine of Solana",
-};
-
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className="bg-[#0e0f12] text-white overflow-x-hidden">
+        <NewsProvider>
+          <WalletContextProvider>
+            <Header />
+            <SidePanel />
+            <main className="pt-24 px-4 sm:px-6 sm:pl-48 pl-24 w-full">{children}</main>
+            {/* <ChatPanel /> */}
+          </WalletContextProvider>
+        </NewsProvider>
       </body>
     </html>
   );

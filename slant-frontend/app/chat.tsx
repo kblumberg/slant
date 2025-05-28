@@ -5,14 +5,12 @@
 // import ChatApp from "./chat";
 // import ChatInterface from "../components/ChatInterface";
 // import slantRoundedInverseLogo from '../public/images/logos/slant-rounded-inverse.png';
-import slantRounded from '../public/images/logos/slant-rounded.png';
 import '../styles/custom.css';
 import '@solana/wallet-adapter-react-ui/styles.css';
 // import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet } from '@solana/wallet-adapter-react';
 // import { WalletConnectButton } from '../components/WalletConnectButton';
 import ChatInterface from '@/components/ChatInterface';
-import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
 
 export default function Chat({ conversationId }: { conversationId: string }) {
@@ -22,19 +20,6 @@ export default function Chat({ conversationId }: { conversationId: string }) {
   return (
     // <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
     <>
-    <div className="fixed text-white font-semibold text-xl top-0 left-0 right-0 h-24 z-10">
-      <div className="flex items-center justify-between pt-3 px-6 pb-2 bg-[#101218]">
-        <div className="flex items-center">
-          <img src={slantRounded.src} alt="Slant Logo" className="h-6 w-6 mr-2" />
-          Slant
-        </div>
-        <div className="walletContainer">
-          <WalletMultiButton />
-        </div>
-      </div>
-      <div className="flex items-center pt-2 pl-4  bg-gradient-to-b from-[#101218] to-transparent">
-      </div>
-    </div>
     <div className="">
       
       {/* <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start"> */}

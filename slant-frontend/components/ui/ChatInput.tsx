@@ -1,3 +1,4 @@
+// components/ui/ChatInput.tsx
 import React, { useState } from 'react';
 
 interface ChatInputProps {

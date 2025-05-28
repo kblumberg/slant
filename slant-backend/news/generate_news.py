@@ -329,7 +329,7 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         - headline: a string representing the headline for the news story
         - summary: a string representing the tl;dr for the news story
         - key_takeaways: a list of strings representing the key takeaways for the news story
-        - sources: for each element in the key_takeaways list, include the url of the source. if multiple sources are used for a single key takeaway, include just the URL of the main source. this list should be equal to the length of the key_takeaways list. if the same source is used for multiple key takeaways, include it multiple times.
+        - sources: for each element in the key_takeaways list, include the url of the source. if multiple sources are used for a single key takeaway, include just the URL of the main source. this list should be equal to the length of the key_takeaways list. if the same source is used for multiple key takeaways, include it multiple times. We prefer Twitter (X) URLs over other sources.
         However, if you do not feel like you have enough information to write a news article or the information is not worthy of a news article, return an empty JSON object.
         ---
 
