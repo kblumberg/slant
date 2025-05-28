@@ -20,7 +20,7 @@ def get_new_accounts():
                 on rt.author_id = tur.id
             where t.author_id != tur.id
                 and not tur.id in (select distinct tk.id from twitter_kols tk)
-                and t.created_at > extract(epoch from (current_date - interval '7 days'))
+                and t.created_at > extract(epoch from (current_date - interval '30 days'))
             group by 1, 2, 3, 4, 5
         )
         , t1 as (

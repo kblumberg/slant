@@ -9,6 +9,9 @@ def pull_and_upload_user_tweets():
 	query = 'SELECT * FROM twitter_kols where tracking = true'
 	result = pg_load_data(query)
 
+	result['exists'] = result.id.isin([int(x['id']) for x in users])
+	result[result.exists == False][['username']]
+
 	# check to see if the tweets have already been uploaded
 	query = 'SELECT distinct t.author_id FROM tweets t where t.created_at < 1741309200'
 	exists = pg_load_data(query)

@@ -1,16 +1,21 @@
+import json
 from typing import Dict, List, Any, Tuple, TypedDict
+import pandas as pd
 from langchain_core.chat_history import BaseChatMessageHistory, BaseMessage
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_postgres import PostgresChatMessageHistory
 from constants.keys import POSTGRES_ENGINE
 import psycopg2
-from utils.utils import log
+from utils.utils import log, get_timestamp
 from langchain_core.messages import SystemMessage
+from classes.JobState import JobState
+from utils.db import pg_load_data, pg_execute_query
+from ai.tools.utils.utils import state_to_reference_materials
 
 class PostgresConversationMemory(BaseChatMessageHistory):
     def __init__(
         self, 
-        session_id: str, 
+        conversation_id: str, 
         sync_connection: psycopg2.connect,
         table_name: str = "chat_history"
     ):
@@ -19,50 +24,191 @@ class PostgresConversationMemory(BaseChatMessageHistory):
         
         Args:
             connection_string (str): PostgreSQL database connection string
-            session_id (str): Unique identifier for the conversation
+            conversation_id (str): Unique identifier for the conversation
             table_name (str, optional): Name of the table to store chat history
         """
         self.memory = PostgresChatMessageHistory(
             table_name
-            , session_id
+            , conversation_id
             , sync_connection=sync_connection
         )
+        self.conversation_id = conversation_id
         self.messages = []
+        self.message_df = pd.DataFrame()
+        self.state_df = pd.DataFrame()
     
-    def save_context(self, inputs: Dict[str, Any], outputs: Dict[str, Any]) -> None:
+    def load_messages(self):
+        query = f"""
+        with conversations as (
+            select '{self.conversation_id}' as conversation_id
+        )
+        , t0 as (
+            select message
+            , 'user' as role
+            , null::JSONB as state
+            , timestamp
+            , id::uuid as id
+            from user_messages um
+            join conversations c on um.conversation_id = c.conversation_id
+        )
+        , t1 as (
+            select ss.state->>'response'::TEXT as message
+            , 'system' as role
+            , ss.state
+            , ss.timestamp
+            , ss.id::uuid as id
+            from state_snapshots ss
+            join t0 on t0.id::uuid = ss.user_message_id::uuid
+        )
+        , t2 as (
+            select *
+            from t0
+            union
+            select *
+            from t1
+        )
+        select *
+        from t2
+        order by timestamp asc
         """
-        Save the current conversation context to the database.
+        df = pg_load_data(query)
+        # log('load_messages df')
+        # log(df)
+
+        messages = []
+        for _, row in df.iterrows():
+            role = row['role']
+            content = row['message']
+            if role == 'user':
+                messages.append(HumanMessage(content=content))
+            elif role == 'system':
+                messages.append(SystemMessage(content=content))
+            else:
+                raise ValueError(f"Unknown role: {role}")
         
-        Args:
-            inputs (Dict): User input context
-            outputs (Dict): Agent's response context
+        self.messages = messages
+        self.message_df = df
+
+    def load_previous_state(self) -> pd.DataFrame:
+        query = f"""
+        with user_messages as (
+            select id as user_message_id
+            from user_messages
+            where conversation_id = '{self.conversation_id}'
+        )
+        select *
+        , state ->> 'tweets_summary' as tweets_summary
+        , state ->> 'web_search_summary' as web_search_summary
+        , state ->> 'flipside_sql_query' as flipside_sql_query
+        , state ->> 'flipside_sql_query_result' as flipside_sql_query_result
+        , state ->> 'user_prompt' as response
+        , state ->> 'web_search_results' as web_search_results
+        , state ->> 'analyses' as analyses
+        , state ->> 'analysis_description' as analysis_description
+        , state ->> 'flipside_sql_query' as flipside_sql_query
+        , state ->> 'response' as response
+        , state ->> 'flipside_example_queries' as flipside_example_queries
+        from state_snapshots ss
+        join user_messages um on um.user_message_id = ss.user_message_id
+        order by timestamp desc
+        limit 1
         """
-        human_message = inputs.get('input', '')
-        ai_message = outputs.get('output', '')
+        df = pg_load_data(query)
+        if len(df):
+            self.state_df = df
+            return df
+        else:
+            return pd.DataFrame()
 
-        log('save_context')
-        log('human_message')
-        if isinstance(human_message, BaseMessage):
-            human_message = human_message.content
-        log(human_message)
-        log('ai_message')
-        if isinstance(ai_message, BaseMessage):
-            ai_message = ai_message.content
-        log(ai_message)
+    def save_conversation(self, state: JobState) -> None:
+        conversation_id = state['conversation_id']
 
-        # Ensure we're working with strings
-        human_message = str(human_message)
-        ai_message = str(ai_message)
-        val = self.memory.add_user_message(human_message)
-        log('self.memory.add_user_message')
-        log(val)
-        val = self.memory.add_ai_message(ai_message)
-        log('self.memory.add_ai_message')
-        log(val)
-        log('self.messages')
-        log(self.messages)
-        return val
+        # if the conversation_id is not in the conversations table, create an entry with
+        # the user_id, created_at, updated_at, and title
+        # if the conversation_id is in the conversations table, update the updated_at
+        query_1 = f"SELECT id FROM conversations WHERE id = '{conversation_id}'"
+        df = pg_load_data(query_1)
+        if len(df):
+            # update the updated_at
+            query = f"UPDATE conversations SET updated_at = NOW() WHERE id = '{conversation_id}'"
+        else:
+            # create a new entry
+            title = state['user_prompt'][:100]
+            query = f"INSERT INTO conversations (id, user_id, created_at, updated_at, title) VALUES (%s, %s, %s, %s, %s)"
+            values = (conversation_id, state['user_id'], get_timestamp(), get_timestamp(), title)
+            conn = psycopg2.connect(POSTGRES_ENGINE)
+            cur = conn.cursor()
+            cur.execute(query, values)
+            conn.commit()
+            cur.close()
+            conn.close()
+            
+        return True
     
+    def save_user_message(self, user_message_id: str, user_prompt: str) -> None:
+        # Escape single quotes in user_prompt to prevent SQL injection
+        escaped_prompt = user_prompt.replace("'", "''")
+        query = f"INSERT INTO user_messages (id, timestamp, message, conversation_id) VALUES ('{user_message_id}', '{get_timestamp()}', '{escaped_prompt}', '{self.conversation_id}')"
+        pg_execute_query(query)
+            
+        return True
+    
+    def save_agent_message(self, state: JobState) -> None:
+        query = f"INSERT INTO agent_messages (message, conversation_id, user_message_id) VALUES (%s, %s, %s)"
+        values = (state['response'], state['conversation_id'], state['user_message_id'])
+        conn = psycopg2.connect(POSTGRES_ENGINE)
+        cur = conn.cursor()
+        cur.execute(query, values)
+        conn.commit()
+        cur.close()
+        conn.close()
+            
+        return True
+
+    def save_state_snapshot(self, state: JobState) -> None:
+        # log('save_state_snapshot')
+        # log(state)
+
+        # tools = list(set(state['completed_tools']))
+
+        # # Escape special characters in tools list to prevent SQL injection
+        # escaped_tools = [tool.replace("'", "''") for tool in tools]
+        # tools_str = str(escaped_tools).replace("'", "''")
+        
+        # # Escape special characters in analyses
+        # escaped_analyses = [str(analysis).replace("'", "''") for analysis in state['analyses']]
+        # analyses_str = str(escaped_analyses).replace("'", "''")
+        
+        # # Convert highcharts config to JSON string and escape
+        # highcharts_str = json.dumps(state['highcharts_config']).replace("'", "''")
+        
+        # # Convert flipside queries DataFrame to JSON string and escape
+        # flipside_queries_str = state['flipside_example_queries'][['query_id','original_score','mult','score']].to_json(orient='records').replace("'", "''")
+        # query = f"INSERT INTO state_snapshots (user_message_id, analyses, tools, highcharts_config, flipside_example_queries) VALUES ('{state['user_message_id']}', '{analyses_str}', '{tools_str}', '{highcharts_str}', '{flipside_queries_str}')"
+
+
+        # Convert to JSON-serializable Python objects
+        query = """
+            INSERT INTO state_snapshots (
+                user_message_id,
+                state
+            ) VALUES (%s, %s)
+        """
+
+        values = (
+            state['user_message_id'],
+            self.state_to_json(state)
+        )
+
+        # Example connection and insert
+        conn = psycopg2.connect(POSTGRES_ENGINE)
+        cur = conn.cursor()
+        cur.execute(query, values)
+        conn.commit()
+        cur.close()
+        conn.close()
+        # pg_execute_query(query)
+ 
     def load_memory_variables(self, inputs: Dict[str, Any]) -> Dict[str, List[str]]:
         """
         Load previous conversation messages.
@@ -125,29 +271,39 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             history_message = None
         return history_message
 
-# Example usage in LangGraph agent configuration
-def create_crypto_agent(connection_string: str, session_id: str):
-    # Memory initialization
-    memory = PostgresConversationMemory(
-        connection_string=connection_string, 
-        session_id=session_id
-    )
-    
-    # LangGraph agent configuration
-    from langgraph.graph import StateGraph, END
-    
-    class AgentState(TypedDict):
-        input: str
-        chat_history: List[BaseMessage]
-        intermediate_steps: List[Tuple]
-    
-    def agent_node(state: AgentState):
-        # Your agent logic here
-        # Use state['chat_history'] to access previous context
-        pass
-    
-    graph = StateGraph(AgentState)
-    # Configure graph with memory-aware nodes
-    # ...
-    
-    return graph
+    def state_to_json(self, state: JobState):
+        j = {
+            'user_prompt': state['user_prompt'],
+            'response': state['response'],
+            'analysis_description': state['analysis_description'],
+            'web_search_results': state['web_search_results'],
+            'flipside_example_queries': state['flipside_example_queries'].query_id.tolist() if len(state['flipside_example_queries']) else [],
+            'flipside_sql_query': state['flipside_sql_query'],
+            'flipside_sql_query_result': state['flipside_sql_query_result'].to_json(orient='records'),
+            'improved_flipside_sql_query': state['improved_flipside_sql_query'],
+            'verified_flipside_sql_query': state['verified_flipside_sql_query'],
+            'analyses': [str(x) for x in state['analyses']],
+            'reference_materials': state_to_reference_materials(state),
+            'context_summary': state['context_summary'],
+            'tweets_summary': state['tweets_summary'],
+            'web_search_summary': state['web_search_summary'],
+            'tweets': [ x.id for x in state['tweets'] ],
+            'transactions': [ x.id for x in state['transactions']],
+            'additional_context_summary': state['additional_context_summary'],
+            'flipside_subset_example_queries': state['flipside_subset_example_queries'],
+            'flipside_tables': state['flipside_tables'],
+            'use_decoded_flipside_tables': state['use_decoded_flipside_tables'],
+            'flipside_determine_approach': state['flipside_determine_approach'],
+            'eta': state['eta'],
+            # 'follow_up_questions': state['follow_up_questions'],
+            # 'tweets': state['tweets'],
+            # 'user_id': state['user_id'],
+            # 'conversation_id': state['conversation_id'],
+            # 'highcharts_configs': state['highcharts_configs'],
+            # 'analyses': state['analyses'],
+            # 'completed_tools': state['completed_tools'],
+            # 'flipside_tables': state['flipside_tables'],
+            # 'flipside_example_queries': state['flipside_example_queries'],
+            # 'web_search_results': state['web_search_results']
+        }
+        return json.dumps(j)

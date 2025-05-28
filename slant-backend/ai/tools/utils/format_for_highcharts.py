@@ -1,7 +1,9 @@
 import json
 import time
+import pandas as pd
 from utils.utils import log
-from classes.GraphState import GraphState
+from classes.JobState import JobState
+from ai.tools.utils.utils import log_llm_call
 
 def validate_and_clean_highcharts_json(config_str: str) -> str:
     """
@@ -10,7 +12,10 @@ def validate_and_clean_highcharts_json(config_str: str) -> str:
     try:
         parsed = json.loads(config_str)
     except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON from LLM: {e}")
+        # log('Invalid JSON from LLM:')
+        # log(config_str)
+        # log(e)
+        raise ValueError(e)
 
     # Optional: Check recursively that no string contains expressions like "100 - 57.3"
     def contains_expression(value):
@@ -28,7 +33,7 @@ def validate_and_clean_highcharts_json(config_str: str) -> str:
 
     return json.dumps(parsed)
 
-def format_for_highcharts(state: GraphState) -> GraphState:
+def format_for_highcharts(state: JobState) -> JobState:
     """
         Formats a data frame for Highcharts.
         Input:
@@ -40,13 +45,16 @@ def format_for_highcharts(state: GraphState) -> GraphState:
                 - highcharts_config: a json object of the highcharts config
     """
     start_time = time.time()
-    log('\n')
-    log('='*20)
-    log('\n')
-    log('format_for_highcharts starting...')
+    # log('\n')
+    # log('='*20)
+    # log('\n')
+    # log('format_for_highcharts starting...')
     if state['flipside_sql_query_result'].empty:
-        log('flipside_sql_query_result is empty')
-        return {'highcharts_config': None, 'completed_tools': ["FormatForHighcharts"]}
+        # log('flipside_sql_query_result is empty')
+        return {'highcharts_configs': [], 'completed_tools': ["FormatForHighcharts"]}
+    sql_query_result = state['flipside_sql_query_result'] if len(state['flipside_sql_query_result']) <= 10 else pd.concat([state['flipside_sql_query_result'].head(5), state['flipside_sql_query_result'].head(5)])
+    if 'date_time' in sql_query_result.columns and 'timestamp' in sql_query_result.columns:
+        del sql_query_result['date_time']
     # log('state:')
     # log(print_sharky_state(sharkyState))
 
@@ -63,18 +71,36 @@ def format_for_highcharts(state: GraphState) -> GraphState:
     # }
 
     # Create prompt template
+    all_columns = [x for x in state['flipside_sql_query_result'].columns.tolist() if x not in ['timestamp', 'category', 'date_time']]
+    number_columns = [x for x in all_columns if state['flipside_sql_query_result'][x].dtype in ['int64', 'float64']]
+    categorical_columns = [x for x in all_columns if not state['flipside_sql_query_result'][x].dtype in ['int64', 'float64']]
+    filter_columns = f"""
+            "filter_column": "COLUMN / FIELD NAME in the data" or "", # if you need to subset the data / filter by an additional column, specify the column name here (must be one of:[ {', '.join(categorical_columns)}])
+            "filter_value": "VALUE in the filter_column to filter by" or "" # if you need to filter by a value, specify the value here
+    """ if len(categorical_columns) else ""
+    log(f'number_columns: {number_columns}')
+    log(f'categorical_columns: {categorical_columns}')
+    categories = '", "'.join([str(s) for s in state['flipside_sql_query_result']['category'].unique().tolist()]) if 'category' in state['flipside_sql_query_result'].columns else []
+    is_categorical = 1 if 'category' in state['flipside_sql_query_result'].columns else 0
+    xAxis = f"""
+        {{ "categories": ["{categories}"] }}
+    """ if len(categories) else f"""
+        {{ 'type': 'datetime' }}
+    """
+    log(f'xAxis: {xAxis}')
     prompt = """
 You are an expert data analyst and Highcharts visualization specialist. Your task is to create a well-structured Highcharts JSON configuration object based on the provided data.
 
 ---
 
 ### **Task**
-Using the provided dataset, generate a **fully functional Highcharts configuration object** that accurately represents the user's requested chart.
+Using the provided dataset, generate a **list of fully functional Highcharts configuration objects** that accurately represents the user's requested chart.
 
 ---
 
 ### **Inputs**
 - **Data**: {sql_query_result}
+- **Available Number Columns**: {available_columns}
 - **User Question**: {question}
 
 ---
@@ -98,46 +124,66 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
    - **Axis Font Size**: `12px`
    - **Hover Background Color**: `#FFFFFF`
    - **Hover Text Color**: `#1060c9`
-   - **Others Colors**: If there are more than 3 series, use other different hues of the primary color (both light and dark all the way to white/black).
+   - **Others Colors**: If there are more than 3 series, use other different hues of the primary color (both light and dark all the way to white/black). Do not use the same color more than once.
 
 3. **Handle Missing or Incomplete Data Gracefully**
    - If the dataset contains null or missing values, ensure they are handled in a way that does not break the chart.
    - If the question is unclear, make a reasonable assumption and document it in a comment within the JSON.
 
 4. **Output Format**
-    - **Return ONLY a valid Highcharts JSON configuration object**.
+    - **Return ONLY a valid list of Highcharts JSON configuration objects**. Must be >= 1 object in the list. Have a preference for just 1 object, but if you cannot display all the data in 1 object, return multiple. Typically, multiple charts are required when there are > 3 dimensions (e.g. 2 categorical and 2 numeric that need to be displayed).
     - **No markdown, no code blocks, no additional text**.
     - **Do NOT include any function calls or JS code**.
     - **Use label.format instead of "formatter: function()"**
     - **Do NOT use any Date functions (e.g. Date.UTC, Date.parse, etc.)**
     - **This will be passed to a JSON.parse() function, so it must be valid JSON with only strings, no functions**
     - Ensure the JSON is properly formatted and structured.
-    - All values in the JSON must be **fully evaluated and concrete**.
-    - Do **NOT** include expressions like `100 - 57.372558`. Compute it first, and write the final number (e.g. `42.627442`).
     - The chart JSON must be valid when passed to `JSON.parse()` in JavaScript — it should NOT contain any operations, expressions, or function calls.
     - In the "series" section, use empty `data: []` arrays. Data will be filled in later.
     - If the x-axis represents time, use "xAxis": {{ "type": "datetime" }} and expect series.data to be an array of {{ x: timestamp_ms, y: value }} and the column name for the x-axis is `timestamp`.
     - If the x-axis is categorical, use "xAxis": {{ "categories": [] }} and expect series.data to be an array of numbers and the column name for the x-axis is `category`.
+    - If it is a "type": "datetime" chart, have a preference for a line chart.
+    - Create as many series charts as needed to display all requested data.
+    - Make sure you are not forgetting any data or series.
 
 ---
 
 ### **Expected JSON Structure**
-{{
+[{{
     "chart": {{ "type": "appropriate_chart_type" }},
     "title": {{ "text": "Descriptive Title" }},
-    "xAxis": {{ "categories": ["Category1", "Category2", ...] OR "type": "datetime" depending on the data }},
+    "xAxis": {xAxis},
     "yAxis": {{ "title": {{ "text": "Y-Axis Label" }} }},
     "series": [
         {{
-            "name": "Series Label",
-            "data": [],
-            "column": "COLUMN_NAME_TO_FILL",
-            "color": "COLOR_TO_BE_FILLED"
+            "name": "Series Label", {name_comment}
+            "data": [], # always leave this as an empty array, we will fill it in later
+            "column": "COLUMN / FIELD NAME in the data", # one of the available_columns
+            "color": "COLOR_TO_BE_FILLED",
+            {filter_columns}
         }}
+        , ...
     ]
 }}
-""".format(sql_query_result=state['flipside_sql_query_result'], question=state['query'])
+, ...
+]
+""".format(
+    sql_query_result=sql_query_result.to_markdown()
+    , question=state['analysis_description']
+    , available_columns=number_columns
+    , filter_columns=filter_columns
+    , xAxis=xAxis
+    , name_comment = ' # there MUST be 1 series for each of: "' + categories + '" and the series name MUST be the same as the value.' if is_categorical else ''
+)
 
+# x = timestamp
+# y = value
+# category1
+# category2
+
+# x = category1
+# category2
+# y = value
 
     # print('prompt')
     # print(prompt)
@@ -148,12 +194,12 @@ Using the provided dataset, generate a **fully functional Highcharts configurati
     #     openai_api_key=OPENAI_API_KEY,
     #     temperature=0.0
     # )
-    raw_config = state['sql_llm'].invoke(prompt).content
-    highcharts_config = validate_and_clean_highcharts_json(raw_config)
-    log('format_for_highcharts highcharts_config')
-    log(highcharts_config)
+    raw_config = log_llm_call(prompt, state['complex_llm'], state['user_message_id'], 'FormatForHighcharts')
+    highcharts_configs = validate_and_clean_highcharts_json(raw_config)
+    log('format_for_highcharts highcharts_configs')
+    log(highcharts_configs)
     time_taken = round(time.time() - start_time, 1)
-    log(f'format_for_highcharts finished in {time_taken} seconds')
+    # log(f'format_for_highcharts finished in {time_taken} seconds')
     # print(f"highcharts_config: {highcharts_config}")
 
-    return {'highcharts_config': highcharts_config, 'completed_tools': ["FormatForHighcharts"], 'upcoming_tools': ["AnswerWithContext"]}
+    return {'highcharts_configs': highcharts_configs, 'completed_tools': ["FormatForHighcharts"], 'upcoming_tools': ["RespondWithContext"]}

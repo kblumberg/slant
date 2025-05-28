@@ -13,7 +13,7 @@ from langchain.schema import SystemMessage, HumanMessage
 from pinecone import Pinecone
 from langchain_openai import OpenAIEmbeddings
 from utils.db import pg_upload_data
-
+from utils.utils import clean_project_tags, clean_token_names
 
 def generate_query_text(row: pd.Series) -> str:
     text = f"Query Summary: {row['summary']}"
@@ -269,40 +269,6 @@ def upload_flipside_queries_to_pinecone():
     pc_upload_data(df, 'text', FLIPSIDE_QUERIES_RAG_COLS, namespace='flipside_queries')
     pc_upload_data(df[df.id == 'fa97ea3c-6767-4223-8622-2e711a0cecdd'], 'text', FLIPSIDE_QUERIES_RAG_COLS)
 
-def clean_project_tag(tag: str) -> str:
-    try:
-        tag = tag.lower()
-        phrases = [' ','.gg', '$', '_']
-        for phrase in phrases:
-            tag = tag.replace(phrase, '')
-        phrases = ['jupiter lfg','famous fox']
-        for phrase in phrases:
-            if tag[:len(phrase)] == phrase:
-                tag = phrase
-        phrases = ['finance','fi','protocol','network']
-        for phrase in phrases:
-            if tag[-len(phrase):] == phrase:
-                tag = tag.replace(phrase, '')
-        tag = tag.replace('.', '')
-        d = {}
-        if tag in d.keys():
-            tag = d[tag]
-        return tag
-    except Exception as e:
-        print(f"Error cleaning project tag: {e}")
-        return tag
-
-def clean_project_tags(tags: str) -> list[str]:
-    try:
-        tags = tags.replace('```json', '').replace('```', '').strip()
-        tags = json.loads(tags)
-        tags = [clean_project_tag(x) for x in tags]
-        tags = [x for x in tags if not x in ['solana']]
-        return tags
-    except Exception as e:
-        print(f"Error cleaning project tags: {e}")
-        return []
-
 def extract_project_tags_from_user_prompt(query: str, llm: ChatOpenAI | ChatAnthropic) -> list[str]:
     system_prompt = """
         You are a blockchain research assistant.
@@ -339,6 +305,56 @@ def extract_project_tags_from_user_prompt(query: str, llm: ChatOpenAI | ChatAnth
         print(response)
         tags = clean_project_tags(response)
         return tags
+    except Exception as e:
+        print(f"Error parsing project list: {e}")
+        return []
+
+def extract_token_references_from_string(text: str, llm: ChatOpenAI | ChatAnthropic) -> list[str]:
+    system_prompt = """
+        You are a blockchain research assistant.
+
+        Your job is to extract **token names** mentioned or referred to in a block of text.
+
+        Tokens are usually mentioned in the query summary, query title, dashboard title, dashboard description, SQL code comments, SQL table aliases or table names.
+
+        Filters based on `mint` or `mint_...` columns (e.g. `mint_address`) are almost always necessary. If there is no `mint` or `mint_...` column, then the token is likely not mentioned.
+
+        Ignore specific token names if they are NFTs.
+
+        Ignore token addresses. Only include token names. (e.g. BONK, JUP, KMNO, etc.)
+
+        Only include **real, recognizable token names** that the text is directly related to or analyzing. Use your knowledge of the crypto ecosystem to infer implied token names if they're clear from context (e.g. from titles or tags), but don't guess.
+
+        Limit the total number of tokens to 5 at most.
+
+        Only use token names, not the addresses.
+
+        Output must be a **JSON list of strings**, and nothing else.
+
+        Do NOT include:
+        - Token addresses
+        - Project names
+        - Empty strings
+
+        If no tokens are mentioned, return an empty list.
+    """
+
+    human_prompt = f"""
+        Text:
+        {text}
+
+        Return the JSON list of crypto token names mentioned:
+    """ 
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=human_prompt)
+    ]
+    try:
+        response = llm(messages).content
+        print('response')
+        print(response)
+        tokens = clean_token_names(response)
+        return tokens
     except Exception as e:
         print(f"Error parsing project list: {e}")
         return []

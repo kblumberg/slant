@@ -9,8 +9,9 @@ import Message from '@/types/Message';
 // import type { SeriesOptionsType } from 'highcharts';
 
 import { motion, AnimatePresence } from "framer-motion";
-import HighchartsData from '@/types/HighchartsData';
-import HighchartsDataSeries from '@/types/HighchartsDataSeries';
+// import HighchartsData from '@/types/HighchartsData';
+// import HighchartsDataSeries from '@/types/HighchartsDataSeries';
+import ChatData from '@/types/ChatData';
 
 // const texts = [
 //   "Writing query",
@@ -71,23 +72,44 @@ const QueryStatus = ({text}: {text: string}) => {
 	);
 }
 
+interface ChatInterfaceProps {
+	userId: string;
+	conversationId: string;
+}
 
-const ChatInterface = () => {
+
+const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [inputText, setInputText] = useState('');
+	// const [inputHeight, setInputHeight] = useState(0);
 	const [isLoading, setIsLoading] = useState(false);
-	// const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
-	const sessionId = crypto.randomUUID();
 	const [status, setStatus] = useState('Analyzing query');
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	// const [status, setStatus] = useState('');
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 	};
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+
+	const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setInputText(e.target.value);
+		if (textareaRef.current) {
+		  textareaRef.current.style.height = 'auto'; // reset height
+		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; // set to scrollHeight
+		//   setInputHeight(textareaRef.current.scrollHeight);
+		}
+	  };
+	
+	  useEffect(() => {
+		if (textareaRef.current) {
+		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+		}
+	  }, []);
 
 	useEffect(() => {
 		scrollToBottom();
-		// setSessionId(crypto.randomUUID());
+		// setconversationId(crypto.randomUUID());
 		// const eventSource = new EventSource('http://localhost:5000/stream');
 
 		// eventSource.onmessage = (event) => {
@@ -111,20 +133,22 @@ const ChatInterface = () => {
 			setStatus('Analyzing query');
 			const params = new URLSearchParams({
 				query,
-				session_id: sessionId,
+				conversation_id: conversationId,
+				user_id: userId,
 			});
 			console.log(`params`)
 			console.log(params.toString())
 			// const eventSource = new EventSource(`http://127.0.0.1:5000/ask?${params.toString()}`);
-			const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
+			const eventSource = new EventSource(`http://127.0.0.1:5000/ask_analyst?${params.toString()}`);
+			// const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
 
 			eventSource.onmessage = (event) => {
-				// console.log("SSE update:");
-				// console.log(event);
+				console.log("SSE update:");
+				console.log(event);
 				try {
 				  const data = JSON.parse(event.data);
-				//   console.log('eventSource.onmessage data');
-				//   console.log(data);
+				  console.log('eventSource.onmessage data');
+				  console.log(data);
 
 					// Process the successful response
 					// const msg = result.response
@@ -147,79 +171,105 @@ const ChatInterface = () => {
 						const parsedData = data.data;
 						console.log('eventSource.onmessage data');
 						console.log(data);
-						let highchartsOptions = parsedData?.highcharts || {};
-						const highchartsData = parsedData?.highcharts_data || [];
-						console.log(`highchartsOptions`)
-						console.log(highchartsOptions)
-						console.log(`highchartsData`)
-						console.log(highchartsData)
+						let highchartsOptionsList = parsedData?.highcharts || [];
+						// let highchartsDataList = parsedData?.highcharts_datas || [];
+						console.log(`highchartsOptionsList`)
+						console.log(highchartsOptionsList)
+						// console.log(`highchartsDataList`)
+						// console.log(highchartsDataList)
+						const chatData: ChatData[] = [];
 						try {
-							if (typeof highchartsOptions === "string") {
-								highchartsOptions = JSON.parse(highchartsOptions)
+							if (typeof highchartsOptionsList === "string") {
+								highchartsOptionsList = JSON.parse(highchartsOptionsList)
 							}
-							console.log(`highchartsOptions`)
-							console.log(highchartsOptions)
-							const highchartsDataParsed: HighchartsData = typeof highchartsData === "string" ? JSON.parse(highchartsData) : highchartsData;
-							console.log(`highchartsDataParsed`)
-							console.log(highchartsDataParsed)
-							highchartsOptions['credits'] = {'enabled': false}
-							const { x, series, mode } = highchartsDataParsed;
-
-							// const scales = {};
-
-							if (mode === "timestamp") {
-								// Each data point already has its own `x` in the backend
-								highchartsOptions.xAxis = { type: "datetime" };
-								// highchartsOptions.series = series;
-
-								// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
-									const matchedSeries = series.find(
-										(s: HighchartsDataSeries) => s.name === seriesConfig.column || s.name === seriesConfig.name
-									);
-									if (matchedSeries) {
-										return {
-											...seriesConfig,
-											data: matchedSeries.data
-										};
-									}
-									return seriesConfig;
-								});
-							  } else {
-								highchartsOptions.xAxis = { categories: x };
-								highchartsOptions.series = series.map((s: HighchartsDataSeries) => ({
-								  ...s,
-								  data: s.data
-								}));
+							// if (typeof highchartsDataList === "string") {
+							// 	highchartsDataList = JSON.parse(highchartsDataList)
+							// }
+							console.log(`highchartsOptionsList`)
+							console.log(highchartsOptionsList)
+							for (let i = 0; i < highchartsOptionsList.length; i++) {
+								const highchartsOptions = highchartsOptionsList[i];
+								// const highchartsData = highchartsDataList[i];
 								console.log(`highchartsOptions`)
 								console.log(highchartsOptions)
+								console.log(`highchartsOptions.xAxis`)
+								console.log(highchartsOptions.xAxis)
+								// const highchartsDataParsed: HighchartsData = typeof highchartsData === "string" ? JSON.parse(highchartsData) : highchartsData;
+								// console.log(`highchartsDataParsed`)
+								// console.log(highchartsDataParsed)
+								highchartsOptions['credits'] = {'enabled': false}
+								// const { x, series, mode } = highchartsDataParsed;
+								// console.log(`highcharts mode = ${mode}`)
+								// console.log(`highcharts series`)
+								// console.log(series)
+								// console.log(`highcharts x`)
+								// console.log(x)
+	
+								// const scales = {};
+	
+								// if (mode === "timestamp") {
+								// 	// Each data point already has its own `x` in the backend
+								// 	highchartsOptions.xAxis = { type: "datetime" };
+								// 	// highchartsOptions.series = series;
+	
+								// 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+								// 	highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
+								// 		const matchedSeries = series.find(
+								// 			(s: HighchartsDataSeries) => s.name.toLowerCase() === seriesConfig.column.toLowerCase() || s.name.toLowerCase() === seriesConfig.name.toLowerCase()
+								// 		);
+								// 		if (matchedSeries) {
+								// 			return {
+								// 				...seriesConfig,
+								// 				data: matchedSeries.data
+								// 			};
+								// 		}
+								// 		return seriesConfig;
+								// 	});
+								//   } else {
+								// 	// highchartsOptions.xAxis = { categories: x };
+								// 	highchartsOptions.series = series.map((s: HighchartsDataSeries) => ({
+								// 	  ...s,
+								// 	  data: s.data
+								// 	}));
+								// 	console.log(`highchartsOptions`)
+								// 	console.log(highchartsOptions)
+								// }
+								chatData.push({
+									highcharts: highchartsOptions,
+									highcharts_data: null,
+									flipside_data: null,
+									// highcharts_data: highchartsData,
+									// flipside_data: highchartsData
+								});
+								// const series = highchartsOptions.series.map(({ name, column }: { name: string, column: string }) => ({
+								// 	name,
+								// 	data: highchartsData.map((row: any) => row[column])
+								// }));
+								// console.log(`series`)
+								// console.log(series)
+								// highchartsOptions.series = series;
+								// console.log(`highchartsOptions`)
+								// console.log(highchartsOptions)
 							}
-							// const series = highchartsOptions.series.map(({ name, column }: { name: string, column: string }) => ({
-							// 	name,
-							// 	data: highchartsData.map((row: any) => row[column])
-							// }));
-							// console.log(`series`)
-							// console.log(series)
-							// highchartsOptions.series = series;
-							// console.log(`highchartsOptions`)
-							// console.log(highchartsOptions)
+
 						} catch (error) {
 							console.error('Error parsing highcharts options:', error);
 						}
+						console.log(`chatData`)
+						console.log(chatData)
 						const botMessage: Message = {
 							id: (Date.now() + 1).toString(),
 							content: data.response,
-							data: {
-								highcharts: highchartsOptions,
-								highcharts_data: highchartsData,
-								flipside_data: highchartsData
-							},
+							data: chatData,
 							sender: 'bot',
 							timestamp: new Date(),
 						// data: null,
 							query: query
 						};
+						console.log(`botMessage`)
+						console.log(botMessage)
 						setMessages(prev => [...prev, botMessage]);
+						console.log(`252`)
 					}
 		  
 				//   setMessages((prev) => [...prev, data]);
@@ -230,7 +280,8 @@ const ChatInterface = () => {
 			};
 
 			eventSource.onerror = (err) => {
-			  console.log("SSE connection error:", err);
+			  console.log("SSE connection error:");
+			  console.log(err);
 			  setIsLoading(false);
 			  setStatus('');
 			  eventSource.close();
@@ -244,7 +295,7 @@ const ChatInterface = () => {
 			// const url = "https://slant-backend-production.up.railway.app/ask_sharky"
 			const body = {
 				"query": query,
-				"session_id": sessionId
+				"conversation_id": conversationId
 			}
 			const response = await fetch(url, {
 				method: "POST",
@@ -307,9 +358,8 @@ const ChatInterface = () => {
 	}
 
 	const handleSend = async () => {
-		if (!inputText.trim()) return;
-
-		const curText = inputText;
+		const curText = inputText.trim();
+		if (!curText) return;
 
 		const userMessage: Message = {
 			id: Date.now().toString(),
@@ -338,20 +388,49 @@ const ChatInterface = () => {
 	// console.log(messages)
 
 	if (messages.length == 0) {
+		// const placeholder = inputText == '' || true ? <div className="text-black text-sm"><ol>
+		// 	I can research any topic on Solana and provide in-depth data analysis. For best results:
+		// 		<li>Include example transaction ids with description</li>
+		// 		<li>Any relevant program ids, addresses, etc</li>
+		// 		<li>Details on timeframe</li>
+		// 	</ol>
+		// </div> : null;
 		return(
 			<div className="flex items-center justify-center min-h-screen sm:p-12 flex flex-col items-center justify-center p-6">
 				<div className="flex flex-col h-full w-full sm:w-3/5 m-auto rounded-md pb-20">
 					<div className='text-6xl font-semibold text-white p-10 text-center'>Ask for alpha</div>
-
-					<div className="flex space-x-4">
-						<textarea
-							value={inputText}
-							onChange={(e) => setInputText(e.target.value)}
-							onKeyPress={handleKeyPress}
-							placeholder="Ask Slant..."
-							className="flex-1 rounded resize-none border p-3 focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent"
-							rows={1}
-						/>
+					<div className="relative flex space-x-4">
+					<div className="bg-white flex w-full h-full">
+					{inputText === '' ? (
+						<div
+							className={`transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute bottom-[20px] left-8 max-w-3/4 z-1`}
+							// style={{ top: `${inputHeight - 90}px` }}
+						>
+							<ul className="list-disc list-inside">
+								<li>Include example transaction ids with description</li>
+								<li>Any relevant program ids, addresses, etc</li>
+								<li>Details on timeframe</li>
+							</ul>
+						</div>
+						) : (
+							<div
+								className="transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute bottom-[65px] left-4 max-w-3/4 z-1"
+								// style={{ top: `${inputHeight - 90}px` }}
+							>
+								Provide as many details as possible for best results
+							</div>
+						)
+					}
+					<textarea
+						ref={textareaRef}
+						value={inputText}
+						onChange={handleChange}
+						onKeyPress={handleKeyPress}
+						placeholder="I can research any topic on Solana and provide in-depth data analysis. For best results:"
+						className={`z-1 placeholder-gray-600 bg-transparent min-h-36 flex-1 rounded resize-none border p-4 pb-[${100}px] focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent`}
+						rows={1}
+					/>
+					</div>
 						<button
 							onClick={handleSend}
 							disabled={!inputText.trim() || isLoading}
@@ -364,11 +443,11 @@ const ChatInterface = () => {
 			</div>
 		)
 	}
-	const messageDivs = messages.map((message) => {
+	const messageDivs = messages.map( (message) => {
 		const isUser = message.sender === 'user';
 		if (isUser) {
 			return (
-				<div key={message.id} className={`flex justify-end`}>
+				<div key={message.id} className={`flex justify-end break-words whitespace-normal`}>
 					<div className={`chat-container user-message max-w-[70%] rounded-lg p-3 ${isUser ? 'text-white' : ''}`}>
 						<div className="text-base">{message.content.split('\n').map((line, i) => (
 							<p key={i}>{line}</p>
@@ -382,27 +461,55 @@ const ChatInterface = () => {
 			// Add target="_blank" to all links in the content
 			const contentWithNewTabLinks = content.replace(/<a\s+(?:[^>]*?)href=/g, '<a target="_blank" href=');
 			// console.log(`typeof message.data?.highcharts = ${typeof message.data?.highcharts}`)
-			const highcharts = message.data?.highcharts;
-			const highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
-			// const highchartsData = message.data?.highcharts_data;
-			return (
+			const chatDataDivs = message?.data || [];
+			
+			const highchartsDivs = chatDataDivs.map((chatData: ChatData, index: number) => {
+				const highcharts = chatData.highcharts;
+				let highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
+				if (highchartsOptions) {
+					highchartsOptions = {
+						...highchartsOptions,
+						yAxis: {
+							...highchartsOptions.yAxis,
+							labels: {
+							...((highchartsOptions.yAxis && highchartsOptions.yAxis.labels) || {}),
+							formatter: function () {
+								if (this.value >= 1e9) {
+								return (this.value / 1e9) + 'B';
+								} else if (this.value >= 1e6) {
+								return (this.value / 1e6) + 'M';
+								} else if (this.value >= 1e3) {
+								return (this.value / 1e3) + 'K';
+								}
+								return this.value;
+							}
+							}
+						}
+					};
+				}
+				// const highchartsData = message.data?.highcharts_data;
+				const divKey = `${message.id}-${index}`;
+				return (
+					<div key={divKey}>
+						<HighchartsReact highcharts={Highcharts} options={highchartsOptions} />
+					</div>
+				)
+			})
+			return(
+				
 				<div key={message.id} className={`flex justify-start`}>
-					<div className={`chat-container max-w-[85%] rounded-lg p-3 ${isUser ? 'text-black' : ''}`}>
-						{message.data && message.data.highcharts && (
-							<div>
-								<HighchartsReact highcharts={Highcharts} options={highchartsOptions} />
-							</div>
-						)}
-						<div className="text-base" dangerouslySetInnerHTML={{ __html: contentWithNewTabLinks }} />
+				<div className={`chat-container max-w-[85%] rounded-lg p-3 ${isUser ? 'text-black' : ''}`}>
+					{highchartsDivs}
+				<div className="text-base" dangerouslySetInnerHTML={{ __html: contentWithNewTabLinks }} />
 					</div>
 				</div>
-			)
+			);
 		}
 	})
 	return (
 		<div className="sm:p-12 pt-10 pb-14 flex flex-col items-center justify-center">
 		<div className="flex flex-col h-full w-full sm:w-3/5 mx-auto rounded-md">
-			<div className="flex-1 overflow-y-auto p-4 space-y-4">
+			<div className="flex-1 overflow-y-auto pt-8 p-4 space-y-4">
 				{messageDivs}
 				{isLoading && (
 					<div className="flex justify-start">

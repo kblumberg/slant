@@ -17,7 +17,7 @@ def update_tweets():
         created_at = df['mx'].max()
         minutes_ago = 60 * 3
         minutes_ago = math.ceil((int(datetime.now().timestamp()) - created_at) / 60)
-        needed_tweets = int(minutes_ago * 300 / 60)
+        needed_tweets = int(minutes_ago * 400 / 60)
         batch_size = min(100, max(10, int(needed_tweets / 15)))
         
         tweets, includes, tweets_includes = get_list_tweets(start_time=created_at, batch_size=batch_size)
@@ -26,7 +26,7 @@ def update_tweets():
         df = load_tweets_for_pc(created_at)
         df = clean_tweets_for_pc(df)
         pc_upload_data(df, 'text', TWEETS_RAG_COLS, batch_size=100, index_name='slant', namespace='tweets')
-        client.chat_postMessage(channel=SLACK_CHANNEL_ID, text=f"Updated {len(df)} tweets")
+        client.chat_postMessage(channel=SLACK_CHANNEL_ID, text=f"Updated {len(tweets)} tweets")
         return len(df)
         
     except Exception as e:
@@ -34,3 +34,10 @@ def update_tweets():
         # Send Slack DM about the error
         client.chat_postMessage(channel=SLACK_CHANNEL_ID, text=f"<@{KELLEN_SLACK_ID}> Error in update_tweets: {str(e)}")
     return 0
+
+def manually_update_tweets(tweet_ids):
+    query = f"select * from tweets where id in ({', '.join(tweet_ids)})"
+    df = pg_load_data(query)
+    df = clean_tweets_for_pc(df)
+    pc_upload_data(df, 'text', TWEETS_RAG_COLS, batch_size=100, index_name='slant', namespace='tweets')
+    return len(df)

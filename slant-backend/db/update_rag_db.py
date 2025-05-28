@@ -40,7 +40,7 @@ def upload_projects_to_rag():
     Description: {row['description']} 
     Ecosystem: {row['ecosystem']} 
     Tags: {row['tags']}""", 1)
-    log(projects_df.content.values[0])
+    # log(projects_df.content.values[0])
 
     pc_upload_data(projects_df, 'content', PROJECTS_RAG_COLS, index_name='slant', namespace='projects')
     

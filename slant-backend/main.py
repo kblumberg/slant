@@ -1,12 +1,13 @@
 import time
 import markdown
 from flask_cors import CORS
-from ai.ai import ask_agent
 from utils.utils import log
 from constants.keys import SLANT_API_KEY
 from scripts.update_tweets import update_tweets
+from ai.tools.analyst.analyst import ask_analyst
 from api.sharky.orderbooks import load_orderbooks
 from api.flipside.update_flipside_data import update_flipside_data
+from api.news.load_news import load_news
 from flask import Flask, jsonify, request, Response, stream_with_context
 
 
@@ -30,8 +31,8 @@ def hello():
 @app.route('/ai')
 def ai():
     val = make_graph()
-    log('val')
-    log(val)
+    # log('val')
+    # log(val)
     return jsonify({
         "greeting": "ai",
         "code": 200
@@ -42,6 +43,15 @@ def update_tweets_route():
     val = update_tweets()
     return jsonify({
         "message": f"Updated {val} tweets",
+        "code": 200
+    })
+
+@app.route('/load_news')
+def load_news_route():
+    val = load_news()
+    return jsonify({
+        "message": f"Loaded {len(val)} news",
+        "data": val.to_dict(orient='records'),
         "code": 200
     })
 
@@ -70,27 +80,32 @@ def sharky_orderbooks_route():
         "data": val.to_dict(orient='records')
     })
 
-@app.route('/ask', methods=['GET'])
-def ask():
+
+@app.route('/ask_analyst', methods=['GET'])
+def ask_analyst_route():
     try:
-        log('ask')
+        # log('ask_analyst')
 
         query = request.args.get('query', '')
-        log(f'query: {query}')
-        session_id = request.args.get('session_id', '')
-        log(f'session_id: {session_id}')
+        # log(f'query: {query}')
+        conversation_id = request.args.get('conversation_id', '')
+        # log(f'conversation_id: {conversation_id}')
+        user_id = request.args.get('user_id', '')
+        # log(f'user_id: {user_id}')
 
         if not query:
             return jsonify({"error": "query required"}), 400
-        if not session_id:
-            return jsonify({"error": "session_id required"}), 400
+        if not conversation_id:
+            return jsonify({"error": "conversation_id required"}), 400
+        if not user_id:
+            return jsonify({"error": "user_id required"}), 400
 
-        response = Response(stream_with_context(ask_agent(query, session_id)), content_type='text/event-stream')
-        # response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-        response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
+        response = Response(stream_with_context(ask_analyst(query, conversation_id, user_id)), content_type='text/event-stream')
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        # response.headers.add('Access-Control-Allow-Origin', 'https://getslant.ai')
         return response
     except Exception as e:
-        log(e)
+        # log(e)
         return jsonify({"error": str(e)}), 500
 
 

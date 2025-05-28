@@ -75,5 +75,5 @@ def rag_search_twitter_kols(state: GraphState) -> GraphState:
     new_kols = list(state['kols']) + kols
     unique_kols = {kol.id: kol for kol in new_kols}.values()
     time_taken = round(time.time() - start_time, 1)
-    log(f'rag_search_twitter_kols finished in {time_taken} seconds')
-    return {'kols': unique_kols, 'completed_tools': ["RagSearchTwitterKols"], 'upcoming_tools': ["AnswerWithContext"]}
+    # log(f'rag_search_twitter_kols finished in {time_taken} seconds')
+    return {'kols': unique_kols, 'completed_tools': ["RagSearchTwitterKols"], 'upcoming_tools': ["RespondWithContext"]}

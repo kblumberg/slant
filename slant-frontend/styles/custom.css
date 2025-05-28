@@ -12,6 +12,15 @@ body {
 .user-message {
     background-color: var(--primary-color);
 }
+
+button.wallet-adapter-button-trigger {
+    background-color: var(--primary-color);
+}
+  
+button.wallet-adapter-button-trigger:hover, button.wallet-adapter-button:not([disabled]):hover {
+    background-color: var(--tertiary-color);
+    opacity: 1;
+}
   
 h3 {
     /* color: var(--primary-color); */
@@ -55,8 +64,9 @@ a {
 .chat-container ul, .chat-container ol {
     padding-left: 20px;
     margin: 10px 0;
-    list-style: disc;
+    list-style: auto;
 }
+
 
 .chat-container li {
     margin-bottom: 5px;

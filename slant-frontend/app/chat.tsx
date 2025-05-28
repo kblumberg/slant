@@ -1,62 +1,144 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { MessageSquare } from "lucide-react";
+// import Image from "next/image";
+// import ChatInterface from "./chat";
+// import ChatApp from "./chat";
+// import ChatInterface from "../components/ChatInterface";
+// import slantRoundedInverseLogo from '../public/images/logos/slant-rounded-inverse.png';
+import slantRounded from '../public/images/logos/slant-rounded.png';
+import '../styles/custom.css';
+import '@solana/wallet-adapter-react-ui/styles.css';
+// import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { useWallet } from '@solana/wallet-adapter-react';
+// import { WalletConnectButton } from '../components/WalletConnectButton';
+import ChatInterface from '@/components/ChatInterface';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
-export default function ChatApp() {
-  const [messages, setMessages] = useState<string[]>([]);
-  const [input, setInput] = useState("");
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    setMessages([...messages, input]);
-    setInput("");
-  };
-
+export default function Chat({ conversationId }: { conversationId: string }) {
+  // const { connected } = useWallet();
+  const { publicKey, connected } = useWallet();
+  // const { publicKey } = useWallet();
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
-      <Card className="w-full max-w-md shadow-lg rounded-2xl">
-        <CardContent className="p-6 space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center">
-              <h1 className="text-2xl font-bold text-[#0E4BA3]">Ask for alpha</h1>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your question..."
-                className="mt-4 w-full"
-              />
-              <Button onClick={sendMessage} className="mt-2 w-full text-white">
-                Ask
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="max-h-96 overflow-y-auto space-y-2 p-2 border rounded-md bg-white">
-                {messages.map((msg, index) => (
-                  <div key={index} className="p-2 bg-gray-200 rounded-md">
-                    {msg}
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center space-x-2">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1"
-                />
-                <Button onClick={sendMessage} className="text-white">
-                  <MessageSquare size={20} />
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    // <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
+    <>
+    <div className="fixed text-white font-semibold text-xl top-0 left-0 right-0 h-24 z-10">
+      <div className="flex items-center justify-between pt-3 px-6 pb-2 bg-[#101218]">
+        <div className="flex items-center">
+          <img src={slantRounded.src} alt="Slant Logo" className="h-6 w-6 mr-2" />
+          Slant
+        </div>
+        <div className="walletContainer">
+          <WalletMultiButton />
+        </div>
+      </div>
+      <div className="flex items-center pt-2 pl-4  bg-gradient-to-b from-[#101218] to-transparent">
+      </div>
     </div>
+    <div className="">
+      
+      {/* <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start"> */}
+      <main>
+      {connected ? (
+        <ChatInterface userId={publicKey?.toString() || ''} conversationId={conversationId} />
+      ) : (
+        <div className="flex items-center justify-center h-screen">
+          <p className="text-white text-2xl">Please connect your wallet</p>
+        </div>
+      )}
+      {/*   <Image
+          className="dark:invert"
+          src="/next.svg"
+          alt="Next.js logo"
+          width={180}
+          height={38}
+          priority
+        />
+        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
+          <li className="mb-2">
+            Hi! Get started by editing{" "}
+            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
+              app/page.tsx
+            </code>
+            .
+          </li>
+          <li>Save and see your changes instantly.</li>
+        </ol>
+
+        <div className="flex gap-4 items-center flex-col sm:flex-row">
+          <a
+            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
+            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Image
+              className="dark:invert"
+              src="/vercel.svg"
+              alt="Vercel logomark"
+              width={20}
+              height={20}
+            />
+            Deploy now
+          </a>
+          <a
+            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
+            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Read our docs
+          </a> 
+        </div>*/}
+      </main>
+      {/* <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
+        <a
+          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
+          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/file.svg"
+            alt="File icon"
+            width={16}
+            height={16}
+          />
+          Learn
+        </a>
+        <a
+          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
+          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/window.svg"
+            alt="Window icon"
+            width={16}
+            height={16}
+          />
+          Examples
+        </a>
+        <a
+          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
+          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Image
+            aria-hidden
+            src="/globe.svg"
+            alt="Globe icon"
+            width={16}
+            height={16}
+          />
+          Go to nextjs.org →
+        </a>
+      </footer> */}
+    </div>
+    </>
   );
 }
