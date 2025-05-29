@@ -1,6 +1,6 @@
 'use client';
 
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+// import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import slantRounded from '../../public/images/logos/slant-rounded.png';
 
 const Header = () => {
