@@ -4,6 +4,7 @@ from datetime import datetime
 from langchain_openai import ChatOpenAI
 from utils.db import pg_load_data, pg_upsert_data, POSTGRES_ENGINE
 from ai.tools.twitter.rag_search_tweets import rag_search_tweets_fn
+from ai.tools.slant.rag_search_projects import rag_search_projects_from_prompt
 import json
 import re
 import requests
@@ -102,7 +103,6 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
     #     Generate Headlines 1-by-1     #
     #####################################
     tweet_url_searches = []
-    check_tweets = []
     all_tweets = pd.DataFrame()
     upload_data = []
     for row in headlines.itertuples():
@@ -312,6 +312,24 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         supplemental_tweet_prompt = '## Supplemental Tweets\n\nUse these tweets to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
         for tweet in similar_tweets[similar_tweets.original == 0].itertuples():
             supplemental_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text}\n\n\n'
+        
+        query = f"""
+        select distinct k.name, k.username, k.description, case when p.tags::text ilike '%news%' then 1 else 0 end as news_tag
+        from twitter_kols k
+        join tweets t
+            on k.id = t.author_id
+        left join projects p
+            on k.associated_project_id = p.id
+        where t.id in ({ids})
+            and not k.username in ('solana','DegenerateNews')
+        limit 10
+        """
+        authors = pg_load_data(query)
+        project_query = row.headline + '\n\n' + '\n'.join([f'{a.name} - {a.username} - {a.description}' for a in authors.itertuples()])
+        projects = rag_search_projects_from_prompt(project_query, 5)
+        # for p in projects:
+        #     print(p)
+        projects = ' - ' + ' - '.join([p.name for p in projects])
 
 
         # search the web
@@ -330,6 +348,20 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         - summary: a string representing the tl;dr for the news story
         - key_takeaways: a list of strings representing the key takeaways for the news story
         - sources: for each element in the key_takeaways list, include the url of the source. if multiple sources are used for a single key takeaway, include just the URL of the main source. this list should be equal to the length of the key_takeaways list. if the same source is used for multiple key takeaways, include it multiple times. We prefer Twitter (X) URLs over other sources.
+        - projects: a list of strings representing the projects mentioned in the news story. you MUST choose from the following list. if none of the projects are mentioned, return an empty list.
+            {projects}
+        - tag: a single string representing the tag for the news story. For the tag, choose between the following:
+            - "DeFi" (decentralized finance like lending, borrowing, trading, etc.)
+            - "NFTs"
+            - "Memecoins"
+            - "Gaming"
+            - "DePIN" (decentralized physical infrastructure like Helium, Render, Hivemapper, etc.)
+            - "Community" (events, groups, real world / IRL, etc.)
+            - "Payments" (stablecoins, payment networks, etc.)
+            - "Infrastructure" (blockchain infrastructure, validators, etc.)
+            - "Legal" (regulations, partnerships, etc.)
+            - "DAOs" (decentralized autonomous organizations, governance, etc.)
+            - "Other" (if the news story does not fit into any of the above categories)
         However, if you do not feel like you have enough information to write a news article or the information is not worthy of a news article, return an empty JSON object.
         ---
 
@@ -361,9 +393,9 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         Output the JSON object in the format above. Do not include any extra commentary or explanation.
         """
 
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-        # llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+        llm = ChatOpenAI(model="gpt-4.1", temperature=0)
         response = llm.invoke(prompt)
         # print(response.content)
         j = parse_json_from_llm(response.content, llm)
@@ -379,6 +411,8 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
     upload_df['original_tweets'] = upload_df['original_tweets'].apply(lambda x: json.dumps(x))
     upload_df['sources'] = upload_df['sources'].apply(lambda x: json.dumps(x))
     upload_df['key_takeaways'] = upload_df['key_takeaways'].apply(lambda x: json.dumps(x))
+    upload_df['projects'] = upload_df['projects'].apply(lambda x: json.dumps(x))
+    upload_df[['headline','projects','tag']].to_csv('~/Downloads/tmp-4.csv', index=False)
     pg_upload_data(upload_df, 'news', 'append')
 
     saved_web_searches_df = pd.DataFrame(saved_web_searches).drop_duplicates(subset=['url'], keep='last').dropna(subset=['text'])

@@ -16,7 +16,7 @@ const SidePanel = () => {
   const pathname = usePathname();
 
   return (
-    <div className="fixed top-[70px] left-0 h-full bg-[#101218] text-white border-r border-[#2a2e39] py-6 z-10">
+    <div className="fixed top-[55px] left-0 h-full bg-[#101218] text-white border-r border-[#2a2e39] py-6 z-10">
       <nav className="flex flex-col items-start space-y-4">
         {navItems.map(({ label, emoji, path }) => (
           <Link

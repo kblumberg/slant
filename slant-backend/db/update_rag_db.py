@@ -24,12 +24,14 @@ def upload_projects_to_rag():
             id,
             name,
             description,
-            ecosystem,
+            coalesce(ecosystem, 'solana') as ecosystem,
             tags,
-            score
+            coalesce(score, 0) as score
         FROM projects
     """
     projects_df = pg_load_data(query)
+    projects_df['ecosystem'].unique()
+    projects_df['tags'] = projects_df['tags'].apply(lambda x: x if x and x == x else [])
     # projects_df = projects_df.head()
     # log('\n'.join(('\n'+'='*20+'\n').join([str(x) for x in projects_df.to_dict('records')]).split('\n')))
     seen = pc_load_data('slant', 'projects')
@@ -42,7 +44,7 @@ def upload_projects_to_rag():
     Tags: {row['tags']}""", 1)
     # log(projects_df.content.values[0])
 
-    pc_upload_data(projects_df, 'content', PROJECTS_RAG_COLS, index_name='slant', namespace='projects')
+    pc_upload_data(projects_df, 'content', PROJECTS_RAG_COLS, index_name='slant', namespace='projects', truncate=True)
     
 
 def upload_twitter_kols_to_rag():

@@ -253,7 +253,7 @@ def pg_upsert_flipside_dashboards_queries(dashboard_queries: pd.DataFrame):
 
 	return True
 
-def pc_upload_data(df, embedding_col, metadata_cols, batch_size=100, index_name='slant', namespace=''):
+def pc_upload_data(df, embedding_col, metadata_cols, batch_size=100, index_name='slant', namespace='', truncate=False):
 	"""
 	Upload data to Pinecone with embeddings and metadata
 	
@@ -265,6 +265,12 @@ def pc_upload_data(df, embedding_col, metadata_cols, batch_size=100, index_name=
 		index: Pinecone index to upload to
 		namespace: Pinecone namespace to upload to
 	"""
+	pc = Pinecone(api_key=PINECONE_API_KEY)
+	index = pc.Index(index_name)
+	if truncate:
+		index.delete(delete_all=True, namespace=namespace)
+		time.sleep(1)
+
 	for i in range(0, len(df), batch_size):
 		batch = df.iloc[i:i+batch_size]
 		# log(f"Processing batch {i//batch_size + 1} of {len(df)//batch_size + 1}")
@@ -286,8 +292,6 @@ def pc_upload_data(df, embedding_col, metadata_cols, batch_size=100, index_name=
 			})
 			
 		# Upload batch to Pinecone
-		pc = Pinecone(api_key=PINECONE_API_KEY)
-		index = pc.Index(index_name)
 		index.upsert(vectors=vectors, namespace=namespace)
 		
 		# Add small delay between batches to avoid rate limits

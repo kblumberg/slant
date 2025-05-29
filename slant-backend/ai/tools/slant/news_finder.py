@@ -13,6 +13,7 @@ def news_finder() -> pd.DataFrame:
     # Ensure params is a dictionary
     current_hour = int(time.localtime().tm_hour)
     days = [1, 7, 30] if current_hour == 5 else [1]
+    days = [7, 30]
     for n_days in days:
         start_timestamp = int(time.time()) - n_days * 24 * 60 * 60
         mult = 'greatest(1, (5/(hours_ago+0.6)) + 0.87)' if n_days == 1 else '1'
@@ -78,9 +79,10 @@ def news_finder() -> pd.DataFrame:
             from t2
             where text is not null
             order by score desc
-            limit 30
+            limit 3000
         """
         news_df = pg_load_data(query)
+        news_df[news_df.conversation_id == 1927846852822495361]
         log(news_df)
 
         all_tweets = load_tweets_for_pc(start_timestamp, news_df.conversation_id.tolist())
