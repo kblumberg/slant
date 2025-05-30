@@ -14,6 +14,7 @@ def update_tracking():
 	ids = [int(user['id']) for user in users]
 	df['tracking_x'] = df.id.isin(ids)
 	g = df[df.tracking != df.tracking_x]
+	g.to_csv('~/Downloads/tmp-7.csv', index=False)
 	for _, row in g.iterrows():
 		query = f"update twitter_kols set tracking = {row['tracking_x']} where id = {row['id']}"
 		print(query)

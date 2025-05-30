@@ -412,7 +412,7 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
     upload_df['sources'] = upload_df['sources'].apply(lambda x: json.dumps(x))
     upload_df['key_takeaways'] = upload_df['key_takeaways'].apply(lambda x: json.dumps(x))
     upload_df['projects'] = upload_df['projects'].apply(lambda x: json.dumps(x))
-    upload_df[['headline','projects','tag']].to_csv('~/Downloads/tmp-4.csv', index=False)
+    # upload_df[['headline','projects','tag']].to_csv('~/Downloads/tmp-4.csv', index=False)
     pg_upload_data(upload_df, 'news', 'append')
 
     saved_web_searches_df = pd.DataFrame(saved_web_searches).drop_duplicates(subset=['url'], keep='last').dropna()
@@ -427,7 +427,7 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         # print(c, len(saved_web_searches_df[saved_web_searches_df[c].isna()]))
         print(c, len(saved_web_searches_df[saved_web_searches_df[c] == None]))
     # saved_web_searches_df.search_query.unique()
-    saved_web_searches_df.to_csv('~/Downloads/tmp-6.csv', index=False)
+    # saved_web_searches_df.to_csv('~/Downloads/tmp-6.csv', index=False)
     saved_web_searches_df.count()
     engine = create_engine(POSTGRES_ENGINE)
     metadata = MetaData()
