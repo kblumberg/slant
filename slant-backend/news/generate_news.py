@@ -359,7 +359,7 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
             - "Community" (events, groups, real world / IRL, etc.)
             - "Payments" (stablecoins, payment networks, etc.)
             - "Infrastructure" (blockchain infrastructure, validators, etc.)
-            - "Legal" (regulations, partnerships, etc.)
+            - "Legal" (regulations, partnerships, SEC, etc.)
             - "DAOs" (decentralized autonomous organizations, governance, etc.)
             - "Other" (if the news story does not fit into any of the above categories)
         However, if you do not feel like you have enough information to write a news article or the information is not worthy of a news article, return an empty JSON object.
@@ -415,7 +415,20 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
     upload_df[['headline','projects','tag']].to_csv('~/Downloads/tmp-4.csv', index=False)
     pg_upload_data(upload_df, 'news', 'append')
 
-    saved_web_searches_df = pd.DataFrame(saved_web_searches).drop_duplicates(subset=['url'], keep='last').dropna(subset=['text'])
+    saved_web_searches_df = pd.DataFrame(saved_web_searches).drop_duplicates(subset=['url'], keep='last').dropna()
+    saved_web_searches_df = saved_web_searches_df[saved_web_searches_df.text != '']
+    saved_web_searches_df['user_message_id'] = 'test'
+    saved_web_searches_df['text'] = saved_web_searches_df['text'].apply(lambda x: x[:35000])
+    # Remove NULL characters from all string columns
+    for col in saved_web_searches_df.select_dtypes(include=['object']).columns:
+        saved_web_searches_df[col] = saved_web_searches_df[col].astype(str).str.replace('\x00', '')
+    for c in saved_web_searches_df.columns:
+        # print(c, len(saved_web_searches_df[saved_web_searches_df[c] == ''][c].unique()))
+        # print(c, len(saved_web_searches_df[saved_web_searches_df[c].isna()]))
+        print(c, len(saved_web_searches_df[saved_web_searches_df[c] == None]))
+    # saved_web_searches_df.search_query.unique()
+    saved_web_searches_df.to_csv('~/Downloads/tmp-6.csv', index=False)
+    saved_web_searches_df.count()
     engine = create_engine(POSTGRES_ENGINE)
     metadata = MetaData()
     table = Table(

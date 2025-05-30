@@ -12,6 +12,7 @@ def news_finder() -> pd.DataFrame:
     # print(f'params: {params}')
     # Ensure params is a dictionary
     current_hour = int(time.localtime().tm_hour)
+    days = [7, 30] if current_hour == 5 else [1]
     days = [1, 7, 30] if current_hour == 5 else [1]
     for n_days in days:
         start_timestamp = int(time.time()) - n_days * 24 * 60 * 60

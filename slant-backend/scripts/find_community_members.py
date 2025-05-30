@@ -5,7 +5,7 @@ import requests
 import pandas as pd
 
 def find_community_members(n_days: int):
-    start_timestamp = int(time.time()) - 50 * 24 * 60 * 60
+    start_timestamp = int(time.time()) - 60 * 24 * 60 * 60
     query = f"""
         with t0 as (
             SELECT coalesce(rt.referenced_tweet_id, t.id) as conversation_id
@@ -65,7 +65,7 @@ def find_community_members(n_days: int):
         from t2
         where text is not null
         order by score desc
-        limit 100
+        limit 300
     """
     news_df = pg_load_data(query)
     retweeters_df = pd.DataFrame()
@@ -96,3 +96,51 @@ def find_community_members(n_days: int):
                 time.sleep(60 * 15)
         except Exception as e:
             print(f"Error getting retweeters: {e}")
+    
+    query = f"""
+        select distinct id
+        from twitter_kols
+    """
+    kols_df = pg_load_data(query)
+
+    g = retweeters_df.groupby(['id','username']).count().reset_index().rename(columns={'conversation_id':'n_tweets'}).sort_values('n_tweets', ascending=False)
+    g['exists'] = g['id'].isin(kols_df['id'].astype(str)).astype(int)
+    g = g[(g.exists == 0) & (g.n_tweets >= 2)].reset_index(drop=True)
+    all_users_df = pd.DataFrame()
+    for i in range(0, len(g), 100):
+        cur = g.iloc[i:i+100]
+        # Get user details from Twitter API
+        users_url = "https://api.twitter.com/2/users"
+        headers = {
+            "Authorization": f"Bearer {ACTIVE_TWITTER_TOKENS[0]}"
+        }
+        params = {
+            "ids": ",".join(cur.id.astype(str)),
+            "user.fields": "description,public_metrics"
+        }
+        try:
+            response = requests.get(users_url, headers=headers, params=params)
+            if response.status_code == 200:
+                users_data = response.json().get('data', [])
+                users_df = pd.DataFrame(users_data)
+                # Extract follower count from public_metrics
+                users_df['followers_count'] = users_df['public_metrics'].apply(lambda x: x.get('followers_count', 0))
+                users_df = users_df[['id', 'description', 'followers_count']]
+                # Merge with current dataframe
+                cur = cur.merge(users_df, on='id', how='left')
+                all_users_df = pd.concat([all_users_df, cur])
+            else:
+                print(f"Failed to get user details: {response.status_code}")
+                print(f"Sleeping for 15 minutes until {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + 60 * 15))}")
+                time.sleep(60 * 15)
+        except Exception as e:
+            print(f"Error getting user details: {e}")
+    all_users_df.to_csv('~/Downloads/all_users.csv', index=False)
+    add_users = pd.read_csv('~/Downloads/add_users.csv')
+    add_users = add_users[add_users.use == 1]
+    add_users = pd.merge(add_users[['username']], all_users_df[['username','id','description','followers_count']], on='username', how='left')
+    add_users.to_csv('~/Downloads/tmp-5.csv', index=False)
+
+    add_users['exists'] = add_users['id'].isin(kols_df['id'].astype(str)).astype(int)
+    add_users = add_users[add_users.exists == 0].reset_index(drop=True)
+    add_users.to_csv('~/Downloads/add_users.csv', index=False)
