@@ -17,7 +17,7 @@ def update_tweets():
         created_at = df['mx'].max()
         minutes_ago = 60 * 3
         minutes_ago = math.ceil((int(datetime.now().timestamp()) - created_at) / 60)
-        needed_tweets = int(minutes_ago * 400 / 60)
+        needed_tweets = int(minutes_ago * 600 / 60)
         batch_size = min(100, max(10, int(needed_tweets / 15)))
         
         tweets, includes, tweets_includes = get_list_tweets(start_time=created_at, batch_size=batch_size)

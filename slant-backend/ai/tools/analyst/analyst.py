@@ -10,7 +10,8 @@ from datetime import datetime
 from tavily import TavilyClient
 from classes.JobState import JobState
 from langchain_openai import ChatOpenAI
-from constants.keys import OPENAI_API_KEY, TAVILY_API_KEY, POSTGRES_ENGINE
+from langchain_anthropic import ChatAnthropic
+from constants.keys import OPENAI_API_KEY, TAVILY_API_KEY, POSTGRES_ENGINE, ANTHROPIC_API_KEY
 from langgraph.graph import StateGraph, START, END
 from utils.memory import PostgresConversationMemory
 from ai.tools.analyst.human_input import human_input
@@ -436,12 +437,18 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         openai_api_key=OPENAI_API_KEY,
         temperature=0.00,
     )
-    reasoning_llm = ChatOpenAI(
+    reasoning_llm = ChatAnthropic(
         # model="gpt-4.1",
-        model="o4-mini",
+        model="claude-opus-4-20250514",
         # model="o1",
-        openai_api_key=OPENAI_API_KEY
+        anthropic_api_key=ANTHROPIC_API_KEY
     )
+    # reasoning_llm = ChatOpenAI(
+    #     # model="gpt-4.1",
+    #     model="o4-mini",
+    #     # model="o1",
+    #     openai_api_key=OPENAI_API_KEY
+    # )
 
     tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
 

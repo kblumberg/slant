@@ -7,6 +7,7 @@ import '@solana/wallet-adapter-react-ui/styles.css';
 import type { ReactNode } from 'react';
 import "./globals.css";
 import { NewsProvider } from '@/context/NewsContext';
+import { ConversationProvider } from '@/context/ConversationContext';
 
 
 
@@ -15,12 +16,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className="bg-[#0e0f12] text-white overflow-x-hidden">
         <NewsProvider>
+          <ConversationProvider>
           <WalletContextProvider>
             <Header />
             <SidePanel />
             <main className="pt-24 px-4 sm:px-6 sm:pl-48 pl-24 w-full">{children}</main>
-            {/* <ChatPanel /> */}
-          </WalletContextProvider>
+            </WalletContextProvider>
+          </ConversationProvider>
         </NewsProvider>
       </body>
     </html>

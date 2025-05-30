@@ -105,7 +105,7 @@ def find_community_members(n_days: int):
 
     g = retweeters_df.groupby(['id','username']).count().reset_index().rename(columns={'conversation_id':'n_tweets'}).sort_values('n_tweets', ascending=False)
     g['exists'] = g['id'].isin(kols_df['id'].astype(str)).astype(int)
-    g = g[(g.exists == 0) & (g.n_tweets >= 2)].reset_index(drop=True)
+    g = g[(g.exists == 0) & (g.n_tweets >= 3)].reset_index(drop=True)
     all_users_df = pd.DataFrame()
     for i in range(0, len(g), 100):
         cur = g.iloc[i:i+100]
