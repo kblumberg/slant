@@ -11,7 +11,8 @@ from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 from ai.tools.utils.utils import state_to_reference_materials, log_llm_call
 
 def decide_flipside_tables(state: JobState) -> JobState:
-    reference_materials = state_to_reference_materials(state)
+    include_keys = ['flipside_example_queries','schema','transactions','program_ids','flipside_investigations']
+    reference_materials = state_to_reference_materials(state, include_keys=include_keys, include_column_types=False, include_column_descriptions=False, include_example_values=False, include_usage_tips=False)
 
     prompt = f"""
     You are an expert blockchain data analyst specializing in Flipside Crypto's SQL data architecture.
@@ -55,7 +56,7 @@ def decide_flipside_tables(state: JobState) -> JobState:
 
     Do not include explanations, reasoning, or any extra formatting.
     """
-    response = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'DecideFlipsideTables')
+    response = log_llm_call(prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'DecideFlipsideTables')
     j = parse_json_from_llm(response, state['llm'])
     log(f'decide_flipside_tables response:')
     log(j)
@@ -64,7 +65,8 @@ def decide_flipside_tables(state: JobState) -> JobState:
     must_include = [
         ('solana.defi.fact_swaps', 'solana.defi.ez_dex_swaps')
         , ('solana.defi.fact_swaps_jupiter_summary', 'solana.defi.fact_swaps_jupiter_inner')
-        , ('solana.defi.fact_swaps_jupiter_inner', 'solana.defi.fact_swaps_jupiter_summary')
+        , ('solana.nft.fact_nft_sales', 'solana.nft.ez_nft_sales')
+        # , ('solana.defi.fact_swaps_jupiter_inner', 'solana.defi.fact_swaps_jupiter_summary')
     ]
     for a, b in must_include:
         if a in j and not b in j:

@@ -21,6 +21,16 @@ button.wallet-adapter-button-trigger:hover, button.wallet-adapter-button:not([di
     background-color: var(--tertiary-color);
     opacity: 1;
 }
+
+.bg-slant-blue {
+    background-color: var(--primary-color);
+}
+.bg-slant-dark-blue {
+    background-color: var(--tertiary-color);
+}
+.bg-slant-yellow {
+    background-color: var(--secondary-color);
+}
   
 h3 {
     /* color: var(--primary-color); */

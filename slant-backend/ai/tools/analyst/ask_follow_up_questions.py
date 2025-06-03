@@ -1,4 +1,6 @@
+import os
 import time
+import pandas as pd
 from utils.utils import log
 from classes.JobState import JobState
 from ai.tools.utils.utils import parse_messages, state_to_reference_materials
@@ -13,12 +15,23 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     # log('\n')
     # log('ask_follow_up_questions starting...')
     reference_materials = state_to_reference_materials(state, preface = "The following is additional context that might be relevant to the user's prompt. If it is relevant, use it to generate clarifying questions. If not, ignore it.", exclude_keys=[])
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    path_name = os.path.join(current_dir, "..", "..", "..", "data", "follow_up_questions.csv")
+    follow_up_questions_df = pd.read_csv(path_name)
+    question_notes = '\n- '.join(follow_up_questions_df['question'].tolist())
 
     # log('ask_follow_up_questions additional_context')
     # log(additional_context)
 
-    asked_followups_before = len(state['memory'].message_df) > 1
+    message_df = state['memory'].message_df
+    user_messages = message_df[message_df.role == 'user']
+    bot_messages = message_df[message_df.role == 'assistant']
+    asked_followups_before = len(bot_messages) > 0 and len(user_messages) > 1
     previous_messages = ''
+
+    log(f'ask_follow_up_questions')
+    log(f'asked_followups_before: {asked_followups_before}')
+    log(f"len(state['messages']): {len(state['messages'])}")
 
     if len(state['messages']) > 1:
         messages = parse_messages(state)
@@ -36,7 +49,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
 
             If the user has not already provided an example transaction id, ask for one if you are still unsure about how to identify the correct transaction types.
 
-            Do NOT ask questions that are repetitive or overly detailed. If the user’s response resolved their intent clearly, then return an empty list like:
+            Do NOT ask questions that are repetitive or overly detailed. If the user's response resolved their intent clearly, then return an empty list like:
             ```json
             []
             ```
@@ -64,7 +77,7 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         - Which projects, protocols, or tokens to include/exclude
         - Thresholds (e.g., "Define whale wallet as over $100k — is that okay?")
         - Granularity (e.g., "Should I group results weekly or monthly?")
-        - Edge case definitions (e.g., "What counts as a new wallet?")
+        - Definitions that are not clear (e.g., "What counts as a new wallet?")
         - Confirming specific addresses, mints, or IDs if already quoted in context
         - Requesting example transaction IDs if identification logic is unclear
 
@@ -139,6 +152,9 @@ def ask_follow_up_questions(state: JobState) -> JobState:
         Response:
         []
 
+        Notes:
+        - {question_notes}
+
         # Critical Reminders
         - Make sure to record any wallet addresses, mints, or program ids EXACTLY as they are. Do not change or miss any characters.
         - NEVER ask the user to answer questions about which tables or columns to use. They are not technical and don't know anything about the Flipside data schemas.
@@ -148,11 +164,12 @@ def ask_follow_up_questions(state: JobState) -> JobState:
     formatted_prompt = prompt.format(
         user_prompt=state['user_prompt'],
         reference_materials=reference_materials,
-        previous_messages=previous_messages
+        previous_messages=previous_messages,
+        question_notes=question_notes
     )
     # log('formatted_prompt')
     # log(formatted_prompt)
-    response = log_llm_call(formatted_prompt, state['llm'], state['user_message_id'], 'AskFollowUpQuestions')
+    response = log_llm_call(formatted_prompt, state['complex_llm'], state['user_message_id'], 'AskFollowUpQuestions')
     follow_up_questions = parse_json_from_llm(response, state['llm'])
     log(f'ask_follow_up_questions (message #{len(state["messages"])})')
     log(follow_up_questions)

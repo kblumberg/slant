@@ -77,7 +77,7 @@ def tool_selector(state: JobState):
     ]
 
     # Call LLM to get the decision
-    response = log_llm_call(parse_messages_fn(messages), state['reasoning_llm'], state['user_message_id'], 'ToolSelector')
+    response = log_llm_call(parse_messages_fn(messages), state['reasoning_llm_anthropic'], state['user_message_id'], 'ToolSelector')
     try:
         tools = json.loads(response)
         if not isinstance(tools, list):

@@ -59,7 +59,7 @@ def context_summarizer(state: JobState) -> JobState:
         analysis_description=state['analysis_description'],
         reference_materials=state_to_reference_materials(state, exclude_keys=[])
     )
-    response = state['reasoning_llm'].invoke(formatted_prompt).content
+    response = state['reasoning_llm_anthropic'].invoke(formatted_prompt).content
     summary = parse_json_from_llm(response, state['llm'], to_json=False)
     log('context_summarizer')
     log(summary)

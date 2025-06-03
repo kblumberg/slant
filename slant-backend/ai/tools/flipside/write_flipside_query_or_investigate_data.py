@@ -47,7 +47,7 @@ def write_flipside_query_or_investigate_data(state: JobState) -> JobState:
         "YES" or "NO"
     """
 
-    response = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'WriteFlipsideQueryOrInvestigateData')
+    response = log_llm_call(prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'WriteFlipsideQueryOrInvestigateData')
 
     log(f"write_flipside_query_or_investigate_data response:")
     log(response)

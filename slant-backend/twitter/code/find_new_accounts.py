@@ -12,15 +12,15 @@ def get_new_accounts():
             , count(distinct t.id) as tweet_count
             FROM tweets t
             join referenced_tweets rt
-                on t.id = rt.id
+                on (t.conversation_id = rt.referenced_tweet_id)
                 and rt.referenced_tweet_type in ('retweeted','quoted')
             join twitter_users tu
                 on t.author_id = tu.id
             join twitter_users tur
                 on rt.author_id = tur.id
             where t.author_id != tur.id
-                and not tur.id in (select distinct tk.id from twitter_kols tk)
-                and t.created_at > extract(epoch from (current_date - interval '30 days'))
+                -- and not tur.id in (select distinct tk.id from twitter_kols tk)
+                and t.created_at > extract(epoch from (current_date - interval '60 days'))
             group by 1, 2, 3, 4, 5
         )
         , t1 as (

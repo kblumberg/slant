@@ -50,7 +50,7 @@ def pre_query_clarifications(state: JobState) -> JobState:
     )
     # log('pre_query_clarifications formatted_prompt')
     # log(formatted_prompt)
-    response = log_llm_call(formatted_prompt, state['reasoning_llm'], state['user_message_id'], 'PreQueryClarifications')
+    response = log_llm_call(formatted_prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'PreQueryClarifications')
     response = parse_json_from_llm(response, state['llm'], to_json=False)
     # log('pre_query_clarifications response')
     # log(response)

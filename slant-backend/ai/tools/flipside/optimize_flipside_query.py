@@ -14,7 +14,7 @@ from ai.tools.utils.utils import state_to_reference_materials, get_optimization_
 
 def flipside_optimize_query_fn(state: JobState, flipside_sql_query: str) -> str:
 
-    # flipside_sql_query = state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
+    # flipside_sql_query = state['optimized_flipside_sql_query'] if state['optimized_flipside_sql_query'] else state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
     optimization_sql_notes = get_optimization_sql_notes_for_flipside()
 
     schema = get_flipside_schema_data(state['flipside_tables'], include_performance_notes=True)
@@ -95,7 +95,7 @@ def optimize_flipside_query(state: JobState) -> JobState:
         Return ONLY the raw SQL (no extra text):
     """
 
-    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'OptimizeFlipsideQuery')
+    sql_query = log_llm_call(prompt, state['complex_llm'], state['user_message_id'], 'OptimizeFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()

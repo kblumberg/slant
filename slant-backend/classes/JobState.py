@@ -31,6 +31,9 @@ class JobState(TypedDict):
     flipside_sql_query: str
     improved_flipside_sql_query: str
     verified_flipside_sql_query: str
+    optimized_flipside_sql_query: str
+    flipside_basic_table_selection: list[str]
+    flipside_tables_from_example_queries: list[str]
     flipside_sql_errors: Annotated[List[str], append]
     investigation_flipside_sql_errors: Annotated[List[str], append]
     flipside_sql_queries: Annotated[List[str], append]
@@ -45,7 +48,8 @@ class JobState(TypedDict):
     transactions: Annotated[List[Transaction], append]
     llm: ChatAnthropic | ChatOpenAI
     complex_llm: ChatAnthropic | ChatOpenAI
-    reasoning_llm: ChatAnthropic | ChatOpenAI
+    reasoning_llm_anthropic: ChatAnthropic | ChatOpenAI
+    reasoning_llm_openai: ChatOpenAI
     memory: any
     tried_tools: int
     additional_contexts: Annotated[List[str], append]
@@ -92,7 +96,7 @@ class JobState(TypedDict):
             'analyses': self.analyses,
             'llm': self.llm,
             'complex_llm': self.complex_llm,
-            'reasoning_llm': self.reasoning_llm,
+            'reasoning_llm_anthropic': self.reasoning_llm_anthropic,
             'memory': self.memory,
             'tried_tools': self.tried_tools,
             'additional_contexts': self.additional_contexts,

@@ -130,8 +130,8 @@ def fs_load_data(query: str, timeout_minutes=3) -> tuple[pd.DataFrame, Exception
 		return df, '', round(time.time() - start_time, 2)
 	except Exception as e:
 		try:
-			# log('e.args')
-			# log(e.args)
+			log('e')
+			log(e)
 			s = re.split('errorData=', e.args[0])
 			# log('s[1]')
 			# log(s[1])

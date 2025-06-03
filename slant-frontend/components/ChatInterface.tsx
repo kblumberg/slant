@@ -92,6 +92,44 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	};
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+	const exportToSql = (sqlString: string) => {
+		console.log(`sqlString`)
+		console.log(sqlString)
+		// const sqlString = "-- Example SQL query\nSELECT * FROM example_table WHERE value > 100;";
+	
+		const blob = new Blob([sqlString], { type: "text/sql" });
+		const url = URL.createObjectURL(blob);
+	
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = "query.sql";
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	
+		URL.revokeObjectURL(url);
+	};
+	
+
+	const exportToCsv = (csvString: string) => {
+		console.log(`csvString`)
+		console.log(csvString)
+		// const csvString = "column1,column2,column3\nvalue1,value2,value3\nvalue4,value5,value6";
+		// const csvString = csvJson.map((row: any) => Object.values(row).join(',')).join('\n');
+		const blob = new Blob([csvString], { type: "text/csv" });
+		const url = URL.createObjectURL(blob);
+	
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = "data.csv";
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	
+		URL.revokeObjectURL(url);
+	};
+	
+
 
 	const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		setInputText(e.target.value);
@@ -172,6 +210,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 						const parsedData = data.data;
 						console.log('eventSource.onmessage data');
 						console.log(data);
+						const flipsideData = parsedData?.flipside_sql_query_result;
+						const flipsideSql = parsedData?.flipside_sql_query;
 						let highchartsOptionsList = parsedData?.highcharts || [];
 						// let highchartsDataList = parsedData?.highcharts_datas || [];
 						console.log(`highchartsOptionsList`)
@@ -238,7 +278,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 								chatData.push({
 									highcharts: highchartsOptions,
 									highcharts_data: null,
-									flipside_data: null,
+									flipside_data: flipsideData,
+									flipside_sql: flipsideSql,
 									// highcharts_data: highchartsData,
 									// flipside_data: highchartsData
 								});
@@ -401,7 +442,7 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 				<div className="flex flex-col h-full w-full sm:w-3/5 m-auto rounded-md pb-20">
 					<div className='text-6xl font-semibold text-white p-10 text-center'>Ask for alpha</div>
 					<div className="relative flex space-x-4">
-					<div className="bg-white flex w-full h-full">
+					<div className="bg-white flex w-full h-full text-black">
 					{inputText === '' ? (
 						<div
 							className={`transition-all duration-300 ease-in-out bg-transparent text-gray-600 absolute bottom-[20px] left-8 max-w-3/4 z-1`}
@@ -463,6 +504,9 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			const contentWithNewTabLinks = content.replace(/<a\s+(?:[^>]*?)href=/g, '<a target="_blank" href=');
 			// console.log(`typeof message.data?.highcharts = ${typeof message.data?.highcharts}`)
 			const chatDataDivs = message?.data || [];
+
+			const flipsideSql = chatDataDivs.length > 0 ? chatDataDivs[0].flipside_sql : null;
+			const flipsideData = chatDataDivs.length > 0 ? chatDataDivs[0].flipside_data : null;
 			
 			const highchartsDivs = chatDataDivs.map((chatData: ChatData, index: number) => {
 				const highcharts = chatData.highcharts;
@@ -496,14 +540,33 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 					</div>
 				)
 			})
+			const buttonsDiv = highchartsDivs.length === 0 ? null : (
+				<div className="flex space-x-2 mt-2">
+					<button
+						onClick={() => exportToSql(flipsideSql)}
+						className=" bg-slant-dark-blue px-4 py-2 rounded hover:bg-blue-700"
+					>
+						<span className="font-size-2 pr-2">📝</span>Export SQL
+					</button>
+					<button
+						onClick={() => exportToCsv(flipsideData)}
+						className="bg-slant-dark-blue px-4 py-2 rounded hover:bg-blue-700"
+					>
+						<span className="pr-2">📊</span>Export CSV
+					</button>
+				</div>
+			);
+			
 			return(
 				
 				<div key={message.id} className={`flex justify-start`}>
-				<div className={`chat-container max-w-[85%] rounded-lg p-3 ${isUser ? 'text-black' : ''}`}>
-					{highchartsDivs}
-				<div className="text-base" dangerouslySetInnerHTML={{ __html: contentWithNewTabLinks }} />
+					<div className={`chat-container max-w-[85%] rounded-lg p-3 ${isUser ? 'text-black' : ''}`}>
+						{highchartsDivs}
+						<div className="text-base" dangerouslySetInnerHTML={{ __html: contentWithNewTabLinks }} />
+						{buttonsDiv}
 					</div>
 				</div>
+
 			);
 		}
 	})

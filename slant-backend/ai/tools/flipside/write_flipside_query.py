@@ -39,7 +39,7 @@ def write_flipside_query(state: JobState) -> JobState:
 
         Any time-based column should be aliased as `date_time` in the final SELECT statement.
 
-        If there is 1 or more categorical columns, the first categorical column should be aliased as `category` in the final SELECT statement.
+        If there is 1 or more categorical columns (must be a string column), the first categorical column should be aliased as `category` in the final SELECT statement.
 
         Write a **correct, performant, and idiomatic** Snowflake SQL query that answers the user’s question.
 
@@ -51,13 +51,13 @@ def write_flipside_query(state: JobState) -> JobState:
         Return ONLY the raw SQL (no extra text):
     """
 
-    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'WriteFlipsideQuery')
+    sql_query = log_llm_call(prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'WriteFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
     log(f"write_flipside_query query:")
     log(sql_query)
-    sql_query = flipside_optimize_query_fn(state, sql_query)
-    log(f"write_flipside_query optimized query:")
-    log(sql_query)
+    # sql_query = flipside_optimize_query_fn(state, sql_query)
+    # log(f"write_flipside_query optimized query:")
+    # log(sql_query)
     return {'flipside_sql_query': sql_query, 'completed_tools': ["WriteFlipsideQuery"], 'upcoming_tools': ["ExecuteFlipsideQuery"]}

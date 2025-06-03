@@ -8,6 +8,7 @@ from ai.tools.utils.utils import read_schemas
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 from ai.tools.utils.utils import state_to_reference_materials
 from ai.tools.utils.utils import log_llm_call
+
 def flipside_determine_approach(state: JobState) -> JobState:
     reference_materials = state_to_reference_materials(state)
     raw_tables = '\n -'.join(state['raw_tables'])
@@ -70,6 +71,6 @@ def flipside_determine_approach(state: JobState) -> JobState:
 
     Return only the summary.
     """
-    flipside_determine_approach = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'FlipsideDetermineApproachUsingRawTables')
+    flipside_determine_approach = log_llm_call(prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'FlipsideDetermineApproachUsingRawTables')
     log(f"flipside_determine_approach: {flipside_determine_approach}")
     return {'flipside_determine_approach': flipside_determine_approach, 'completed_tools': ['FlipsideDetermineApproachUsingRawTables']}

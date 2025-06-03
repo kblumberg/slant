@@ -1,42 +1,52 @@
 
 FLIPSIDE_TABLES = [
-    'solana.core.dim_labels',
-    'solana.core.ez_events_decoded',
-    'solana.core.fact_transactions',
-    'solana.core.fact_transfers',
-    'solana.core.fact_decoded_instructions',
-    'solana.core.fact_events',
-    'solana.nft.ez_nft_sales',
-    'solana.nft.dim_nft_metadata',
-    'solana.nft.fact_nft_mints',
-    'solana.nft.fact_nft_mint_actions',
-    'solana.nft.fact_nft_burn_actions',
-    'solana.price.ez_prices_hourly',
-    'solana.price.dim_asset_metadata',
-    'solana.defi.ez_dex_swaps',
-    'solana.defi.fact_swaps',
-    'solana.defi.fact_liquidity_pool_actions',
-    'solana.defi.fact_bridge_activity',
-    'solana.defi.fact_token_burn_actions',
-    'solana.defi.fact_token_mint_actions',
-    'solana.defi.fact_swaps_jupiter_inner',
-    'solana.defi.fact_swaps_jupiter_summary',
-    'solana.defi.fact_stake_pool_actions',
-    'solana.gov.ez_staking_lp_actions',
-    'solana.gov.fact_block_production',
-    'solana.gov.fact_gauges_creates',
-    'solana.gov.fact_gauges_votes',
-    'solana.gov.fact_gov_actions',
-    'solana.gov.fact_proposal_creation',
-    'solana.gov.fact_proposal_votes',
-    'solana.gov.fact_rewards_fee',
-    'solana.gov.fact_rewards_rent',
-    'solana.gov.fact_rewards_staking',
-    'solana.gov.fact_rewards_voting',
-    'solana.gov.fact_validators',
-    'solana.gov.fact_votes_agg_block',
-    'solana.gov.fact_vote_accounts',
-    'solana.gov.dim_epoch',
-    'solana.gov.fact_stake_accounts',
-    
+    'solana.core.dim_idls'
+    , 'solana.core.dim_labels'
+    , 'solana.core.ez_events_decoded'
+    , 'solana.core.ez_signers'
+    , 'solana.core.fact_blocks'
+    , 'solana.core.fact_decoded_instructions'
+    , 'solana.core.fact_events'
+    , 'solana.core.fact_events_inner'
+    , 'solana.core.fact_sol_balances'
+    , 'solana.core.fact_token_account_owners'
+    , 'solana.core.fact_token_balances'
+    , 'solana.core.fact_transactions'
+    , 'solana.core.fact_transfers'
+    , 'solana.defi.ez_dex_swaps'
+    , 'solana.defi.ez_liquidity_pool_actions'
+    , 'solana.defi.fact_bridge_activity'
+    , 'solana.defi.fact_stake_pool_actions'
+    , 'solana.defi.fact_swaps'
+    , 'solana.defi.fact_swaps_jupiter_inner'
+    , 'solana.defi.fact_swaps_jupiter_summary'
+    , 'solana.defi.fact_token_burn_actions'
+    , 'solana.defi.fact_token_mint_actions'
+    , 'solana.gov.dim_epoch'
+    , 'solana.gov.ez_staking_lp_actions'
+    , 'solana.gov.fact_block_production'
+    , 'solana.gov.fact_gauges_creates'
+    , 'solana.gov.fact_gauges_votes'
+    , 'solana.gov.fact_gov_actions'
+    , 'solana.gov.fact_proposal_creation'
+    , 'solana.gov.fact_proposal_votes'
+    , 'solana.gov.fact_rewards_fee'
+    , 'solana.gov.fact_rewards_rent'
+    , 'solana.gov.fact_rewards_staking'
+    , 'solana.gov.fact_rewards_voting'
+    , 'solana.gov.fact_stake_accounts'
+    , 'solana.gov.fact_staking_lp_actions'
+    , 'solana.gov.fact_validators'
+    , 'solana.gov.fact_vote_accounts'
+    , 'solana.gov.fact_votes_agg_block'
+    , 'solana.nft.dim_nft_metadata'
+    , 'solana.nft.ez_nft_sales'
+    , 'solana.nft.fact_nft_burn_actions'
+    , 'solana.nft.fact_nft_mint_actions'
+    , 'solana.nft.fact_nft_mints'
+    , 'solana.price.dim_asset_metadata'
+    , 'solana.price.ez_asset_metadata'
+    , 'solana.price.ez_prices_hourly'
+    , 'solana.price.fact_prices_ohlc_hourly'
+    , 'solana.stats.ez_core_metrics_hourly'
 ]

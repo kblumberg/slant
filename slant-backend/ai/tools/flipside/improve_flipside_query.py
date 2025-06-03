@@ -75,7 +75,7 @@ def improve_flipside_query(state: JobState) -> JobState:
     # Would you like me to help you add follow-up tools like structured diff checking, error classification, or self-scoring next?
 
 
-    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'ImproveFlipsideQuery')
+    sql_query = log_llm_call(prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'ImproveFlipsideQuery')
 
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()

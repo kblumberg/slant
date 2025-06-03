@@ -19,8 +19,15 @@ from langchain_core.messages import BaseMessage
 
 def log_llm_call(prompt: str, llm: ChatOpenAI | ChatAnthropic, user_message_id: str, function_name: str) -> str:
     start_time = time.time()
-    log(f'LLM call: {function_name} {format(len(prompt), ",")}')
     response = llm.invoke(prompt)
+    model_name = response.response_metadata['model_name']
+    duration = round(time.time() - start_time, 2)
+    duration_m = f"{int(duration // 60):02d}:{int(duration % 60):02d}"
+    log(f'\n\nLLM call: {function_name}')
+    log(f'- Chars: {format(len(prompt), ",")}')
+    log(f'- Tokens: {format(response.usage_metadata["input_tokens"], ",")} -> {format(response.usage_metadata["output_tokens"], ",")}')
+    log(f'- Model: {model_name}')
+    log(f'- Duration: {duration_m}')
     end_time = time.time()
     # log(f'LLM response: {response}')
     cur = pd.DataFrame([{
@@ -39,7 +46,7 @@ def log_llm_call(prompt: str, llm: ChatOpenAI | ChatAnthropic, user_message_id: 
     return response.content
 
 
-def get_flipside_schema_data(include_tables: list[str] = [], include_performance_notes: bool = False):
+def get_flipside_schema_data(include_tables: list[str] = [], include_performance_notes: bool = False, include_column_types: bool = True, include_column_descriptions: bool = True, include_example_values: bool = True, include_usage_tips: bool = True):
     # current_dir = os.path.dirname(os.path.abspath(__file__))
     current_dir = '.'
     # include_tables = []
@@ -64,18 +71,27 @@ def get_flipside_schema_data(include_tables: list[str] = [], include_performance
             cur_notes = flipside_table_notes[flipside_table_notes.table == table].dropna()
             if len(flipside_table) > 0:
                 schema_text.append(f"**Description**: {flipside_table.description.values[0]}")
+            # if include_column_types:
+            #     schema_text.append(f"**Data Types**:")
+            #     for _, row in cur.iterrows():
+            #         schema_text.append(f" - {row['column_name']}: {row['data_type']}")
+            # if include_column_descriptions:
+            #     schema_text.append(f"**Column Descriptions**:")
+            #     for _, row in cur.iterrows():
+            #         schema_text.append(f" - {row['column_name']}: {row['column_description']}")
             if len(cur_notes) > 0:
                 schema_text.append(f"**Notes**:")
                 for note in cur_notes.usage_note.unique():
                     schema_text.append(f" - {note}")
             schema_text.append(f"**Columns**:")
             for _, row in cur[cur.table == table].sort_values(by='ordinal_position').iterrows():
-                col_info = f"- {row['column_name']} ({row['data_type']})"
-                if not row['ignore_description']:
+                data_type = "(" + row['data_type'] + ")" if include_column_types else ''
+                col_info = f"- {row['column_name']} {data_type}"
+                if not row['ignore_description'] and include_column_descriptions:
                     col_info += f": {row['column_description']}"
-                if not pd.isna(row['example_values']):
+                if not pd.isna(row['example_values']) and include_example_values:
                     col_info += f" (Examples: {row['example_values']})"
-                if not pd.isna(row['usage_tips']):
+                if not pd.isna(row['usage_tips']) and include_usage_tips:
                     col_info += f" (Usage Tips: {row['usage_tips']})"
                 schema_text.append(col_info)
             schema_text.append("")  # Empty line between tables
@@ -225,15 +241,19 @@ def get_other_info():
     """
 
 
-def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], preface: str = '', use_summary = False, include_keys: list[str] = [], include_performance_notes: bool = False):
+def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], preface: str = '', use_summary = False, include_keys: list[str] | None = None, include_performance_notes: bool = False, include_column_types: bool = True, include_column_descriptions: bool = True, include_example_values: bool = True, include_usage_tips: bool = True):
     additional_context = '## 📚 Reference Materials\n\n'
+    log(f'\n\n{additional_context}')
 
-    log(f'state["flipside_tables"]: {state["flipside_tables"]}')
-    log(f'state["flipside_investigations"]:')
-    log(state["flipside_investigations"])
-    schema = get_flipside_schema_data(state['flipside_tables'], include_performance_notes)
+    # log(f'state["flipside_tables"]: {state["flipside_tables"]}')
+    # log(f'state["flipside_investigations"]:')
+    # log(state["flipside_investigations"])
+    tables = state['flipside_tables'] if len(state['flipside_tables']) > 0 else list(set(state['flipside_tables_from_example_queries'] + state['flipside_basic_table_selection'])) if len(state['flipside_tables_from_example_queries']) > 0 and len(state['flipside_basic_table_selection']) > 0 else []
+    log(f'tables: {tables}')
+    schema = get_flipside_schema_data(tables, include_performance_notes, include_column_types, include_column_descriptions, include_example_values, include_usage_tips)
     state['schema'] = schema
-    log(f'schema length: {len(schema)}')
+    log(f'schema length: {format(len(schema), ",")}')
+    log(f"state['flipside_tables']: {state['flipside_tables']}")
 
     if preface:
         additional_context = additional_context + preface + '\n\n'
@@ -255,10 +275,11 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
     log(f'indices: {indices}')
     queries_text = state['flipside_example_queries'].text.apply(lambda x: x[:10000]).values
     flipside_example_queries = ''
+    indices = indices if len(indices) else [int (x) for x in range(len(queries_text))]
     for i in range(len(indices)):
         ind = indices[i]
-        flipside_example_queries = flipside_example_queries + '### Example Query #' + str(i + 1) + ':\n' + queries_text[ind] + '\n\n'
-    log(f'flipside_example_queries length: {len(flipside_example_queries)}')
+        flipside_example_queries = flipside_example_queries + '### Example Query #' + str(i + 1) + ':\n' + remove_sql_comments(queries_text[ind]) + '\n\n'
+    # log(f'flipside_example_queries length: {len(flipside_example_queries)}')
     def flipside_investigations_text(state: JobState):
         if len(state['flipside_investigations']) == 0:
             return ''
@@ -267,11 +288,11 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
             if i['load_time'] > 0:
                 if len(i['result']) > 0:
                     result = i['result'].to_markdown() if len(i['result']) <= 10 else pd.concat([i['result'].head(5), i['result'].tail(5)]).to_markdown()
-                    val = val + f"""Query: {i['query']}\nResult sample (first and last 5 rows): {result}"""
+                    val = val + f"""Query: {i['query']}\nResult sample (first and last 5 rows): {result}\n\n"""
                 elif i['error']:
-                    val = val + f"""Query: {i['query']}\nError: {i['error']}"""
+                    val = val + f"""Query: {i['query']}\nError: {i['error']}\n\n"""
                 else:
-                    val = val + f"""Query: {i['query']}\nResult: No rows returned"""
+                    val = val + f"""Query: {i['query']}\nResult: No rows returned\n\n"""
         return val
     d = {
         'tweets_summary': ('SUMMARY OF TWEETS', '', None)
@@ -288,16 +309,19 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
         , 'flipside_investigations': ('SAMPLE FLIPSIDE RESULTS', '', flipside_investigations_text)
     }
     keys = [k for k in possible_keys if k not in exclude_keys]
-    keys = [k for k in keys if k in include_keys or len(include_keys) == 0]
+    keys = [k for k in keys if include_keys is None or k in include_keys]
     for k in keys:
         # log(k)
+        new_context = ''
         if not k in state.keys():
-            additional_context = additional_context + '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n'
+            new_context = '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n'
         elif len(state[k]) > 0:
             if d[k][2]:
-                additional_context = additional_context + '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n' + d[k][2](state)
+                new_context = '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n' + d[k][2](state)
             else:
-                additional_context = additional_context + '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n' + state[k]
+                new_context = '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n' + state[k]
+        log(f'{k} length: {format(len(new_context), ",")}')
+        additional_context = additional_context + new_context
             # if k == 'transactions':
             #     transactions = '\n'.join([ str(transaction) for transaction in state['transactions']])
             #     transaction_text = f"""
@@ -399,11 +423,6 @@ def parse_tx(tx_id: str):
         'logMessages': logMessages
     }
 
-def remove_sql_comments(sql: str) -> str:
-    # Remove multi-line comments (/* ... */)
-    sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
-    # Remove single-line comments (-- ...)
-    sql = re.sub(r'--.*$', '', sql, flags=re.MULTILINE)
-    # Optionally strip out empty lines
-    sql = '\n'.join(line for line in sql.splitlines() if line.strip())
-    return sql
+def remove_sql_comments(sql):
+    # Remove -- comments (from -- to end of line)
+    return re.sub(r'--.*?$', '', sql, flags=re.MULTILINE).strip()

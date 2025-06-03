@@ -6,7 +6,6 @@ from constants.constant import SLACK_CHANNEL_ID, KELLEN_SLACK_ID
 from constants.db import TWEETS_RAG_COLS
 from datetime import datetime
 import math
-import time
 
 def update_tweets():
     client = WebClient(token=SLACK_TOKEN)

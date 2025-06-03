@@ -19,8 +19,8 @@ def rag_search_queries(query: str, project_tags: list[str], top_k: int = 40, n_q
     results['user_mult'] = results.rk.apply(lambda x: 0.985 ** x)
     results['score'] = results['score'] * results['user_mult']
     results = results.sort_values(['score'], ascending=[0]).drop_duplicates(subset=['query_id'], keep='first')
-    log('rag_search_queries results')
-    log(results[['query_id', 'score', 'original_score', 'user_mult', 'time_mult', 'project_mult', 'dashboard_mult']].head(30))
+    # log('rag_search_queries results')
+    # log(results[['query_id', 'score', 'original_score', 'user_mult', 'time_mult', 'project_mult', 'dashboard_mult']].head(30))
     results = results.head(n_queries)
     return results
 

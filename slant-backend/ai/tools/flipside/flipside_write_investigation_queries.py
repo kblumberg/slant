@@ -18,7 +18,7 @@ def flipside_write_investigation_queries(state: JobState) -> JobState:
 
     reference_materials = state_to_reference_materials(state, exclude_keys=['projects'])
 
-    sql_query = state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
+    sql_query = state['optimized_flipside_sql_query'] if state['optimized_flipside_sql_query'] else state['verified_flipside_sql_query'] if state['verified_flipside_sql_query'] else state['improved_flipside_sql_query'] if state['improved_flipside_sql_query'] else state['flipside_sql_query']
 
     prompt = f"""
     You are a senior crypto data analyst with deep expertise in Flipside Crypto's SQL schema.
@@ -31,6 +31,7 @@ def flipside_write_investigation_queries(state: JobState) -> JobState:
     - A user question to be answered via SQL
     - A proposed SQL query that attempts to answer it
     - Reference materials including database schema, sample queries, and other helpful context
+    - Any previously run investigation queries and their results
 
     Your task is to write a **list of lightweight SQL queries** to quickly investigate the relevant data. These queries will help verify that key Common Table Expressions (CTEs), filters, or joins in the proposed query are returning the expected structure and data.
 
@@ -39,10 +40,13 @@ def flipside_write_investigation_queries(state: JobState) -> JobState:
     ---
 
     ### 🔍 Guidelines for the Investigation Queries:
-    - Use `LIMIT` (default to limit 5 rows unless more are needed) or a `WHERE block_timestamp >= ...` filter to keep the query fast.
+    - Always use a `WHERE block_timestamp >= ...` filter first in your `WHERE` clause (where possible, preferably `WHERE block_timestamp >= CURRENT_DATE() - 1`) to keep the query fast.
+    - Use `LIMIT` (default to limit 3 rows unless more are needed) to keep the query fast -> this query has a timeout of 1 minute
     - Prefer selecting from just one or two relevant tables, focusing on verifying key filters or joins.
     - The goal is to confirm whether the filtered data exists and looks as expected.
     - If the proposed query uses well-understood or curated tables (and you're confident the data will return as expected), return an **empty list**.
+    - Only include queries that are necessary to verify the proposed query (e.g. either a join or a filter).
+    - Do NOT include queries that already exist in the investigation queries.
 
     ---
 
@@ -70,6 +74,7 @@ def flipside_write_investigation_queries(state: JobState) -> JobState:
     response = parse_json_from_llm(response, state['complex_llm'], to_json=True)
     log(f"flipside_write_investigation_queries queries:")
     log(response)
-    flipside_investigations = state['flipside_investigations'] + [ {'query': query, 'result': None, 'error': None, 'load_time': 0} for query in response ]
+    existing_queries = [q['query'].lower() for q in state['flipside_investigations']]
+    flipside_investigations = state['flipside_investigations'] + [ {'query': query, 'result': None, 'error': None, 'load_time': 0} for query in response if query.lower() not in existing_queries ]
     return {'flipside_investigations': flipside_investigations, 'completed_tools': ["FlipsideWriteInvestigationQueries"]}
 

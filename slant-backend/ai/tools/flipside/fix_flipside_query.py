@@ -48,7 +48,7 @@ def fix_flipside_query(state: JobState) -> JobState:
         Return ONLY the raw SQL (no extra text):
     """
 
-    sql_query = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'FixFlipsideQuery')
+    sql_query = log_llm_call(prompt, state['reasoning_llm_anthropic'], state['user_message_id'], 'FixFlipsideQuery')
     # Remove SQL code block markers if present
     sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
     log(f"fix_flipside_query query:")

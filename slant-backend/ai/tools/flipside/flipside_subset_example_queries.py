@@ -16,7 +16,7 @@ from db.add_flipside_table_names import parse_tables_from_query
 
 def flipside_subset_example_queries(state: JobState) -> JobState:
 
-    reference_materials = state_to_reference_materials(state, exclude_keys=['projects','flipside_example_queries'])
+    reference_materials = state_to_reference_materials(state, exclude_keys=['projects','flipside_example_queries'], include_column_types=False, include_column_descriptions=False, include_example_values=False, include_usage_tips=False)
     example_queries = ''
     log(state['flipside_example_queries'])
     for i in range(len(state['flipside_example_queries'])):
@@ -72,9 +72,7 @@ def flipside_subset_example_queries(state: JobState) -> JobState:
     Prioritize example queries that include specific tables, filters, program ids, addresses, etc. that will be helpful to guide the generation of a new SQL query.
     Also prioritize example queries that tackle similar questions to the user's question or use similar methodologies that we might need.
 
-    Return at most 5 examples, but you may select fewer depending on relevance.
-
-    Select as few examples as possible, prioritizing relevance, usefulness, and distinctness. If 2 queries are very similar, select just one of them.
+    Return at most 3 examples, but select as few examples as possible, prioritizing relevance, usefulness, and distinctness. If 2 queries are very similar, select just one of them.
 
     ---
 
@@ -87,8 +85,9 @@ def flipside_subset_example_queries(state: JobState) -> JobState:
     [0, 2, 3]
     [2, 4, 6, 8, 12]
     """
-
-    response = log_llm_call(prompt, state['reasoning_llm'], state['user_message_id'], 'FlipsideSubsetExampleQueries')
+    # llm = state['reasoning_llm_anthropic'] if len(prompt) >= 15000 else state['reasoning_llm_anthropic']
+    llm = state['complex_llm']
+    response = log_llm_call(prompt, llm, state['user_message_id'], 'FlipsideSubsetExampleQueries')
 
 
     # Remove SQL code block markers if present

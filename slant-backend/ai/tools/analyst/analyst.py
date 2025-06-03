@@ -33,6 +33,7 @@ from ai.tools.utils.format_for_highcharts import format_for_highcharts
 from ai.tools.flipside.verify_flipside_query import verify_flipside_query
 from ai.tools.flipside.fix_flipside_query import fix_flipside_query
 from ai.tools.flipside.improve_flipside_query import improve_flipside_query
+from ai.tools.flipside.flipside_optimize_query import flipside_optimize_query
 from constants.constant import MAX_FLIPSIDE_SQL_ATTEMPTS
 from ai.tools.utils.tool_selector import tool_selector
 from ai.tools.utils.tool_executor import tool_executor
@@ -52,6 +53,9 @@ from ai.tools.flipside.flipside_subset_example_queries import flipside_subset_ex
 from ai.tools.utils.utils import get_flipside_schema_data
 from ai.tools.flipside.flipside_write_investigation_queries import flipside_write_investigation_queries
 from ai.tools.flipside.flipside_execute_investigation_queries import flipside_execute_investigation_queries
+from ai.tools.flipside.flipside_basic_table_selection import flipside_basic_table_selection
+from ai.tools.flipside.flipside_tables_from_example_queries import flipside_tables_from_example_queries
+from io import StringIO
 
 def follow_up_questions_logic(state: JobState) -> str:
     log(f'follow_up_questions_logic:')
@@ -94,7 +98,7 @@ def post_write_flipside_query_logic(state: JobState) -> str:
     if total_days >= 33 and state['approach'] == '2' and not state['use_decoded_flipside_tables']:
         return "FlipsideCheckQuerySubset"
     else:
-        return "ExecuteFlipsideQuery"
+        return "FlipsideOptimizeQuery"
 
 def post_determine_approach_logic(state: JobState) -> str:
     log(f'post_determine_approach_logic:')
@@ -238,8 +242,8 @@ def verify_results_logic(state: JobState) -> str:
         return "FixFlipsideQuery"
     else:
         # we have an updated version of the query
-        log('returning ExecuteFlipsideQuery')
-        return "ExecuteFlipsideQuery"
+        log('returning FlipsideOptimizeQuery')
+        return "FlipsideOptimizeQuery"
 
 def wrap_node(fn, name=None):
     node_name = name or fn.__name__
@@ -295,6 +299,9 @@ def make_graph():
     builder.add_node("DetermineStartTimestamp", wrap_node(determine_start_timestamp))
     builder.add_node("CheckDecodedFlipsideTables", wrap_node(check_decoded_flipside_tables))
     builder.add_node("FlipsideCheckQuerySubset", wrap_node(flipside_check_query_subset))
+    builder.add_node("FlipsideOptimizeQuery", wrap_node(flipside_optimize_query))
+    builder.add_node("FlipsideBasicTableSelection", wrap_node(flipside_basic_table_selection))
+    builder.add_node("FlipsideTablesFromExampleQueries", wrap_node(flipside_tables_from_example_queries))
     builder.add_node("JoinTools1", wrap_node(lambda state: {}, name="JoinTools1"))
     builder.add_node("JoinTools2", wrap_node(lambda state: {}, name="JoinTools2"))
     builder.add_node("JoinTools3", wrap_node(lambda state: {}, name="JoinTools3"))
@@ -324,6 +331,7 @@ def make_graph():
     for node in tool_nodes:
         builder.add_edge("JoinTools2", node)
 
+    builder.add_edge("LoadExampleFlipsideQueries", "RefineFlipsideQueryPrompt")
     tool_nodes = [
         "RagSearchTweets",
         "RagSearchProjects",
@@ -334,7 +342,6 @@ def make_graph():
     ]
     for node in tool_nodes:
         builder.add_edge(node, "JoinTools3")
-    builder.add_edge("LoadExampleFlipsideQueries", "RefineFlipsideQueryPrompt")
 
     builder.add_conditional_edges("JoinTools1", join_tools_gate_1)
     builder.add_conditional_edges("JoinTools3", join_tools_gate_3)
@@ -342,6 +349,8 @@ def make_graph():
     tool_nodes = [
         "SummarizeWebSearch",
         "SummarizeTweets",
+        "FlipsideBasicTableSelection",
+        "FlipsideTablesFromExampleQueries",
     ]
     for node in tool_nodes:
         builder.add_edge("JoinTools4", node)
@@ -371,9 +380,10 @@ def make_graph():
     # builder.add_conditional_edges("FlipsideWriteInvestigationQueries", "FlipsideExecuteInvestigationQueries")
     # builder.add_conditional_edges("FlipsideExecuteInvestigationQueries", post_write_flipside_query_logic)
     # builder.add_conditional_edges("WriteFlipsideQuery", post_write_flipside_query_logic)
-    builder.add_edge("FlipsideCheckQuerySubset", "ExecuteFlipsideQuery")
+    builder.add_edge("FlipsideCheckQuerySubset", "FlipsideOptimizeQuery")
     # builder.add_edge("ImproveFlipsideQuery", "ExecuteFlipsideQuery")
-    builder.add_edge("FixFlipsideQuery", "ExecuteFlipsideQuery")
+    builder.add_edge("FixFlipsideQuery", "FlipsideOptimizeQuery")
+    builder.add_edge("FlipsideOptimizeQuery", "ExecuteFlipsideQuery")
     builder.add_conditional_edges("ExecuteFlipsideQuery", post_flipside_execution_logic)
     builder.add_conditional_edges("VerifyFlipsideQuery", verify_results_logic)
 
@@ -437,13 +447,19 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         openai_api_key=OPENAI_API_KEY,
         temperature=0.00,
     )
-    reasoning_llm = ChatAnthropic(
+    reasoning_llm_openai = ChatOpenAI(
+        model="o4-mini",
+        openai_api_key=OPENAI_API_KEY,
+        # temperature=0.00,
+    )
+    reasoning_llm_anthropic = ChatAnthropic(
         # model="gpt-4.1",
         model="claude-opus-4-20250514",
         # model="o1",
+        max_tokens=4096,
         anthropic_api_key=ANTHROPIC_API_KEY
     )
-    # reasoning_llm = ChatOpenAI(
+    # reasoning_llm_anthropic = ChatOpenAI(
     #     # model="gpt-4.1",
     #     model="o4-mini",
     #     # model="o1",
@@ -479,6 +495,8 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , analysis_description=''
         , messages=memory.messages
         , write_flipside_query_or_investigate_data=''
+        , flipside_basic_table_selection=[]
+        , flipside_tables_from_example_queries=[]
         , flipside_investigations=[]
         , investigation_flipside_sql_queries=[]
         , investigation_flipside_sql_errors=[]
@@ -487,8 +505,10 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , flipside_sql_errors=[]
         , flipside_sql_query_results=[]
         , flipside_sql_query=''
+        , flipside_sql_feedback=''
         , improved_flipside_sql_query=''
         , verified_flipside_sql_query=''
+        , optimized_flipside_sql_query=''
         , flipside_sql_error=''
         , flipside_sql_attempts=0
         , tried_tools=0
@@ -499,7 +519,8 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         , tweets=[]
         , llm=llm
         , complex_llm=complex_llm
-        , reasoning_llm=reasoning_llm
+        , reasoning_llm_anthropic=reasoning_llm_anthropic
+        , reasoning_llm_openai=reasoning_llm_openai
         , memory=memory
         , additional_contexts=[]
         , additional_context_summary=''
@@ -541,6 +562,23 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
             response['response'] = message
         upcoming_tool = get_upcoming_tool(chunk)
 
+
+        # save sql query to response
+        verified_flipside_sql_query = chunk.get('verified_flipside_sql_query')
+        flipside_sql_query = chunk.get('flipside_sql_query')
+        optimized_flipside_sql_query = chunk.get('optimized_flipside_sql_query')
+        query = optimized_flipside_sql_query if optimized_flipside_sql_query else verified_flipside_sql_query if verified_flipside_sql_query else flipside_sql_query
+        response['flipside_sql_query'] = query
+
+        # save data to response
+        flipside_sql_query_result = chunk.get('flipside_sql_query_result')
+        if len(flipside_sql_query_result):
+            csv_buffer = StringIO()
+            flipside_sql_query_result.to_csv(csv_buffer, index=False)
+            csv_string = csv_buffer.getvalue()
+            response['flipside_sql_query_result'] = csv_string
+
+        # save highcharts configs to response
         highcharts_configs = chunk.get('highcharts_configs')
         if type(highcharts_configs) == str:
             highcharts_configs = json.loads(highcharts_configs)
@@ -709,10 +747,17 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
     html_output = markdown.markdown(response['response'])
     # log('html output created')
 
-    data = {
-    }
+    data = response
     if 'highcharts_configs' in response and response['highcharts_configs']:
-        data['highcharts'] = response['highcharts_configs']
+        highcharts_configs = response['highcharts_configs']
+        for highcharts_config in highcharts_configs:
+            for series in highcharts_config['series']:
+                for c in ['column','filter_column','filter_value']:
+                    if c in series.keys():
+                        del series[c]
+        log('highcharts_configs')
+        log(highcharts_configs)
+        data['highcharts'] = highcharts_configs
     if 'highcharts_datas' in response and response['highcharts_datas']:
         data['highcharts_datas'] = response['highcharts_datas']
     log('highcharts data')
