@@ -30,7 +30,8 @@ def generate_rag_search_query(text: str) -> str:
 
     Return only the search query.
     """
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+    llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+    # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     response = llm.invoke(prompt)
     return response.content
 
@@ -85,12 +86,12 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         }}
     ]
 
-    Target around 10 headlines, but don't be afraid to include more or less based on the quality of the candidates.
+    Target around {15 if len(clean_tweets) > 30 else 10} headlines, but don't be afraid to include more or less based on the quality of the candidates.
 
     Make sure your information and timeframe is accurate, being careful to not make up or mis-represent any information. Details matter.
     """
     # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+    llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
     # llm = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=0)
     response = llm.invoke(prompt)
     # print(response.content)
@@ -105,8 +106,12 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
     tweet_url_searches = []
     all_tweets = pd.DataFrame()
     upload_data = []
+    seen = [x['headline'] for x in upload_data]
     for row in headlines.itertuples():
         print(f'== {row.headline}\n\n')
+        if row.headline in seen:
+            print('Skipping...')
+            continue
 
         ################################
         #     Query Similar Tweets     #
@@ -116,7 +121,7 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         for tweet in clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].itertuples():
             text += f'## Tweet Author:\n{tweet.username}\n## Tweet Text:\n{tweet.text}\n\n\n'
         query = generate_rag_search_query(text)
-        rag_tweets = rag_search_tweets_fn(query, 0, 0, [], 10)
+        rag_tweets = rag_search_tweets_fn(query, 0, end_timestamp, [], 10)
         ids = set(conversation_ids + [int(x.id) for x in rag_tweets])
         ids = "'" + "', '".join([str(x) for x in ids]) + "'"
         query = f"""
@@ -167,7 +172,8 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
 
         Output the project name as a string only, with no explanation.
         """
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+        # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
         response = llm.invoke(prompt)
         project_name = response.content.replace('"', '')
         project_name = clean_project_tag(project_name)
@@ -265,41 +271,43 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
 
         Output the optimized search query as a **single string only**, with no explanation.
         """
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
         response = llm.invoke(prompt)
         query = 'Solana blockchain '+response.content.replace('"', '')
-        web_search_results = tavily_client.search(query, search_depth="basic", include_answer=True, include_images=False, max_results=5, include_raw_content=True)
+        web_search_prompt = ''
+        if n_days <= 8:
+            web_search_results = tavily_client.search(query, search_depth="basic", include_answer=True, include_images=False, max_results=5, include_raw_content=True)
 
 
-        ############################################
-        #     Generate Prompt for News Article     #
-        ############################################
-        web_search_prompt = '## Web Search Results\n\nUse these web search results to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
-        web_search_prompt = '**Summary**\n' + web_search_results['answer'] + '\n\n'
-        web_search_prompt += '**Pages**\n\n'
-        cutoff_date = datetime.now() - timedelta(days=(n_days * 2) + 14)
-        for r in web_search_results['results']:
-            date = parse_date(r)
-            # print('date:', date)
-            # save the web search results to db
-            cur = {
-                'url': r['url'],
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                'project': project_name,
-                'user_message_id': '',
-                'search_query': query,
-                'base_url': r['url'].split('/')[2],
-                'text': r['raw_content']
-            }
-            saved_web_searches += [cur]
-            if (date and date > cutoff_date) or not date:
-                web_search_prompt += f'**{r["title"]}**\n'
-                web_search_prompt += f'**URL:** {r["url"]}\n'
-                # web_search_prompt += f'**Date:** {date.strftime("%Y-%m-%d")}\n'
-                web_search_prompt += f'**Summary:** {r["content"]}\n\n'
-                if r['raw_content']:
-                    web_search_prompt += f'**Content:** {r["raw_content"]}\n\n'
-        web_search_prompt += '\n\n'
+            ############################################
+            #     Generate Prompt for News Article     #
+            ############################################
+            web_search_prompt = '## Web Search Results\n\nUse these web search results to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
+            web_search_prompt = '**Summary**\n' + web_search_results['answer'] + '\n\n'
+            web_search_prompt += '**Pages**\n\n'
+            cutoff_date = datetime.now() - timedelta(days=(n_days * 2) + 14)
+            for r in web_search_results['results']:
+                date = parse_date(r)
+                # print('date:', date)
+                # save the web search results to db
+                cur = {
+                    'url': r['url'],
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'project': project_name,
+                    'user_message_id': '',
+                    'search_query': query,
+                    'base_url': r['url'].split('/')[2],
+                    'text': r['raw_content']
+                }
+                saved_web_searches += [cur]
+                if (date and date > cutoff_date) or not date:
+                    web_search_prompt += f'**{r["title"]}**\n'
+                    web_search_prompt += f'**URL:** {r["url"]}\n'
+                    # web_search_prompt += f'**Date:** {date.strftime("%Y-%m-%d")}\n'
+                    web_search_prompt += f'**Summary:** {r["content"]}\n\n'
+                    if r['raw_content']:
+                        web_search_prompt += f'**Content:** {r["raw_content"]}\n\n'
+            web_search_prompt += '\n\n'
 
         if not 'score' in similar_tweets.columns:
             similar_tweets = pd.merge(similar_tweets, clean_tweets[['conversation_id','score']], on='conversation_id', how='left')
@@ -346,8 +354,8 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         Your output must be a JSON object with the following fields:
         - headline: a string representing the headline for the news story
         - summary: a string representing the tl;dr for the news story
-        - key_takeaways: a list of strings representing the key takeaways for the news story
-        - sources: for each element in the key_takeaways list, include the url of the source. if multiple sources are used for a single key takeaway, include just the URL of the main source. this list should be equal to the length of the key_takeaways list. if the same source is used for multiple key takeaways, include it multiple times. We prefer Twitter (X) URLs over other sources.
+        - key_takeaway: a string representing the key takeaway for the news story, with an emphasis on how it will impact the current "meta" of the Solana ecosystem if possible. Keep it short and concise, no frills.
+        - sources: a list of strings representing the sources for the news story. We prefer Twitter (X) URLs over other sources.
         - projects: a list of strings representing the projects mentioned in the news story. you MUST choose from the following list. if none of the projects are mentioned, return an empty list.
             {projects}
         - tag: a single string representing the tag for the news story. For the tag, choose between the following:
@@ -393,24 +401,26 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int):
         Output the JSON object in the format above. Do not include any extra commentary or explanation.
         """
 
-        # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        # llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-        llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+        # llm = ChatOpenAI(model="gpt-o4-mini", temperature=0)
+        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+        # llm = ChatOpenAI(model="gpt-4.1", temperature=0)
         response = llm.invoke(prompt)
         # print(response.content)
         j = parse_json_from_llm(response.content, llm)
+        j['projects'] = list(set(j['projects']))
         j['score'] = round(clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].score.astype(float).max(), 2)
         j['timestamp'] = clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].created_at.max()
         j['original_tweets'] = clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].sort_values('score', ascending=False).conversation_id.tolist()
+        print(j['key_takeaway'])
 
         upload_data += [j]
 
     upload_df = pd.DataFrame(upload_data)
-    upload_df['n_days'] = n_days
+    # upload_df['n_days'] = n_days
     upload_df['updated_at'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     upload_df['original_tweets'] = upload_df['original_tweets'].apply(lambda x: json.dumps(x))
     upload_df['sources'] = upload_df['sources'].apply(lambda x: json.dumps(x))
-    upload_df['key_takeaways'] = upload_df['key_takeaways'].apply(lambda x: json.dumps(x))
+    # upload_df['key_takeaways'] = upload_df['key_takeaways'].apply(lambda x: json.dumps(x))
     upload_df['projects'] = upload_df['projects'].apply(lambda x: json.dumps(x))
     # upload_df[['headline','projects','tag']].to_csv('~/Downloads/tmp-4.csv', index=False)
     pg_upload_data(upload_df, 'news', 'append')

@@ -12,15 +12,41 @@ def news_finder() -> pd.DataFrame:
     # print(f'params: {params}')
     # Ensure params is a dictionary
     current_hour = int(time.localtime().tm_hour)
-    days = [1, 7, 30] if current_hour == 5 else [1]
+    # CHUNK_SIZE = 4
+    CHUNK_SIZE = 0
+    days = range(CHUNK_SIZE, 80, CHUNK_SIZE) if CHUNK_SIZE > 0 else [1]
     for n_days in days:
-        start_timestamp = int(time.time()) - n_days * 24 * 60 * 60
-        mult = 'greatest(1, (5/(hours_ago+0.6)) + 0.87)' if n_days == 1 else '1'
+        print(f'n_days: {n_days}')
+
+        # 6 hour buffer if we are doing today's news
+        buffer = 60 * 60 * 6 if CHUNK_SIZE == 0 else 0
+        start_timestamp = int(time.time()) - (n_days * 24 * 60 * 60) - buffer
+        end_timestamp = start_timestamp + (CHUNK_SIZE * 24 * 60 * 60) if CHUNK_SIZE > 0 else int(time.time())
+        # Convert timestamp to YYYY-MM-DD format
+        start_date = time.strftime('%Y-%m-%d', time.localtime(start_timestamp))
+        end_date = time.strftime('%Y-%m-%d', time.localtime(end_timestamp))
+        print(f'start_date: {start_date}')
+        print(f'end_date: {end_date}')
+        # start_timestamp = int(time.time()) - n_days * 24 * 60 * 60
+        # mult = 'greatest(1, (5/(hours_ago+0.6)) + 0.87)' if n_days == 1 else '1'
         mult = 'greatest(1, (5/(hours_ago+0.6)) + 0.87)'
-        for hours_ago in range(1, 24):
-            print(f'{hours_ago}: {(5/(hours_ago+0.6)) + 0.87}')
+        # for hours_ago in range(1, 24):
+        #     print(f'{hours_ago}: {(5/(hours_ago+0.6)) + 0.87}')
         query = f"""
-            with t0 as (
+            with timeframe as (
+                select {start_timestamp} as start_timestamp
+                , {end_timestamp} as end_timestamp
+            )
+            , tot as (
+                select count(distinct t.author_id) as n_authors
+                FROM tweets t
+                join timeframe tf
+                    on t.created_at >= tf.start_timestamp - (30 * 24 * 60 * 60)
+                    and t.created_at <= tf.start_timestamp
+                where 
+                    not t.author_id in (1568628960929501184)
+            )
+            , t0 as (
                 SELECT coalesce(rt.referenced_tweet_id, t.id) as conversation_id
                 , coalesce(tur.name, tu.name) as name
                 , coalesce(tur.username, tu.username) as username
@@ -46,9 +72,11 @@ def news_finder() -> pd.DataFrame:
                     on t.author_id = tk.id
                 left join twitter_kols tkr
                     on rt.author_id = tkr.id
+                join timeframe tf
+                    on t.created_at >= tf.start_timestamp
+                    and t.created_at <= tf.end_timestamp
                 where 
-                    t.created_at >= {start_timestamp}
-                    and not t.author_id in (1568628960929501184)
+                    not t.author_id in (1568628960929501184)
                 group by 1, 2, 3, 4, 5, 6
                 order by n_retweeters desc, impression_count desc
                 limit 200
@@ -72,17 +100,25 @@ def news_finder() -> pd.DataFrame:
                 , (cur_timestamp - created_at) / (60 * 60.0) as hours_ago
                 from t1
             )
+            , t3 as (
+                select *
+                , greatest(1, (5/(hours_ago+0.6)) + 0.87) as mult
+                , concat('https://x.com/', username, '/status/', conversation_id) as twitter_url
+                from t2
+                join tot t
+                    on true
+                where text is not null
+            )
             select *
-            , n_retweeters * {mult} as score
-            , concat('https://x.com/', username, '/status/', conversation_id) as twitter_url
-            from t2
-            where text is not null
+            , 100 * (1 - power(1 / (n_retweeters * mult * 650 / n_authors), 0.6)) as score
+            from t3
+            where n_retweeters > 0
             order by score desc
-            limit 30
+            limit {40 if CHUNK_SIZE > 0 else 30}
         """
         news_df = pg_load_data(query)
-        news_df[news_df.conversation_id == 1927846852822495361]
-        log(news_df)
+        # news_df[news_df.conversation_id == 1927846852822495361]
+        # log(news_df)
 
         all_tweets = load_tweets_for_pc(start_timestamp, news_df.conversation_id.tolist())
         clean_tweets = clean_tweets_for_pc(all_tweets)
