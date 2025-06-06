@@ -46,7 +46,7 @@ def parse_date(entry):
                 pass  # Handle other formats if needed
     return None
 
-def generate_news(clean_tweets: pd.DataFrame, n_days: int):
+def generate_news(clean_tweets: pd.DataFrame, n_days: int, end_timestamp: int):
     tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
     saved_web_searches = []
 

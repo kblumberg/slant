@@ -624,6 +624,20 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
                         log('series')
                         log(series)
                         cur = flipside_sql_query_result.copy()
+                        numerical_columns = cur.select_dtypes(include=['number']).columns.tolist()
+                        log(f'numerical_columns: {numerical_columns}.')
+                        for c in numerical_columns:
+                            mn = cur[c].min()
+                            if mn >= 1000:
+                                cur[c] = cur[c].apply(lambda x: round(x)).astype(int)
+                            elif mn >= 100:
+                                cur[c] = cur[c].apply(lambda x: round(x, 1)).astype(float)
+                            elif mn >= 1:
+                                cur[c] = cur[c].apply(lambda x: round(x, 2)).astype(float)
+                            elif mn >= 0.1:
+                                cur[c] = cur[c].apply(lambda x: round(x, 3)).astype(float)
+                            elif mn >= 0.01:
+                                cur[c] = cur[c].apply(lambda x: round(x, 4)).astype(float)
                         if 'category' in cur.columns:
                             cur['category_clean'] = cur['category'].apply(lambda x: x.lower().strip())
                         categories = cur['category'].unique().tolist() if 'category' in cur.columns else []
@@ -758,10 +772,12 @@ def ask_analyst(user_prompt: str, conversation_id: str, user_id: str):
         log('highcharts_configs')
         log(highcharts_configs)
         data['highcharts'] = highcharts_configs
-    if 'highcharts_datas' in response and response['highcharts_datas']:
-        data['highcharts_datas'] = response['highcharts_datas']
-    log('highcharts data')
-    log(data)
+    # if 'highcharts_datas' in response and response['highcharts_datas']:
+    #     data['highcharts_datas'] = response['highcharts_datas']
+    if 'highcharts_configs' in data:
+        del data['highcharts_configs']
+    log('returning data')
+    log(json.dumps(data, indent=2))
     message = {
         "response": html_output,
         "data": data

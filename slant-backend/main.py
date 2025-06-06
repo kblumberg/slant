@@ -1,5 +1,8 @@
 import time
 import markdown
+import os
+import requests
+import boto3
 from flask_cors import CORS
 from utils.utils import log
 from constants.keys import SLANT_API_KEY
@@ -10,7 +13,7 @@ from api.flipside.update_flipside_data import update_flipside_data
 from api.news.load_news import load_news
 from ai.tools.slant.news_finder import news_finder
 from flask import Flask, jsonify, request, Response, stream_with_context
-
+from api.slant.get_upload_url import get_upload_url
 
 app = Flask(__name__)
 CORS(app)
@@ -38,6 +41,15 @@ def ai():
         "greeting": "ai",
         "code": 200
     })
+
+@app.route('/api/get-upload-url', methods=['POST'])
+def get_upload_url_route():
+    data = request.json
+    filename = data.get('filename')
+    if not filename:
+        return jsonify({'error': 'Missing filename'}), 400
+    return get_upload_url(filename)
+
 
 @app.route('/update_tweets')
 def update_tweets_route():
