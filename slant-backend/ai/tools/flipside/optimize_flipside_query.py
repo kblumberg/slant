@@ -20,36 +20,43 @@ def flipside_optimize_query_fn(state: JobState, flipside_sql_query: str) -> str:
     schema = get_flipside_schema_data(state['flipside_tables'], include_performance_notes=True)
 
     prompt = f"""
-        You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
+    You are an expert in writing accurate, efficient, and idiomatic Snowflake SQL queries for blockchain analytics using the Flipside database.
 
-        ---
+    ---
 
-        ## Task
+    ## Task
 
-        Optimize the following Snowflake SQL query, keeping the same logic and output, but making it more efficient by adapting the JOIN and WHERE clauses where possible to make the query more performant.
+    Optimize the following Snowflake SQL query, keeping the same logic and output, but making it more efficient by improving the JOIN and WHERE clauses where possible to make the query more performant.
 
-        ### SQL Query:
-        {flipside_sql_query}
+    ### SQL Query:
+    {flipside_sql_query}
 
-        ---
+    ---
 
-        {optimization_sql_notes}
+    {optimization_sql_notes}
 
-        ---
+    ---
 
-        ## Flipside Data Schema
-        {schema}
+    ## Flipside Data Schema
+    {schema}
 
-        ---
+    ---
 
-        ## ✍️ Output
+    ## ✍️ Output
 
-        Write a **correct, performant, and idiomatic** Snowflake SQL query that keeps the same logic and output, but is more efficient. If there are no optimizations to make, just return the original query.
+    Write a **correct, performant, and idiomatic** Snowflake SQL query that keeps the same logic and output, but is more efficient. If there are no optimizations to make, just return the original query.
 
-        Keep everything else the same, just optimize the JOIN and WHERE clauses.
+    DO NOT explain your changes.
 
-        Return ONLY the raw SQL (no extra text):
+    DO NOT include any comments.
+
+    DO NOT include any markdown, headings, bullet points, or prose.
+
+    DO NOT preface your output with any text (such as "Here is the optimized query:").
+
+    Return ONLY the raw SQL code block — the exact SQL text — and nothing else.
     """
+
     # log('flipside_optimize_query_fn')
     # log(prompt)
 

@@ -10,7 +10,8 @@ from utils.utils import log, get_timestamp
 from langchain_core.messages import SystemMessage
 from classes.JobState import JobState
 from utils.db import pg_load_data, pg_execute_query
-from ai.tools.utils.utils import state_to_reference_materials
+from ai.tools.utils.utils import state_to_reference_materials, parse_messages
+from ai.tools.utils.utils import log_llm_call
 
 class PostgresConversationMemory(BaseChatMessageHistory):
     def __init__(
@@ -130,10 +131,33 @@ class PostgresConversationMemory(BaseChatMessageHistory):
         df = pg_load_data(query_1)
         if len(df):
             # update the updated_at
-            query = f"UPDATE conversations SET updated_at = NOW() WHERE id = '{conversation_id}'"
+
+            messages = parse_messages(state) + '\n\nUSER: ' + state['user_prompt']
+            prompt = f"""
+            Create a title for the following conversation:
+            {messages}
+
+            The title should be at most 5 words and ideally less than 3 words.
+
+            Return ONLY the title, and nothing else.
+            """
+            log(f'prompt: {prompt}')
+            title = log_llm_call(prompt, state['llm'], state['user_message_id'], 'CreateConversationTitle')[:100]
+            query = f"UPDATE conversations SET updated_at = NOW(), title = '{title}' WHERE id = '{conversation_id}'"
         else:
             # create a new entry
             title = state['user_prompt'][:100]
+            messages = parse_messages(state) + '\n\nUSER: ' + state['user_prompt']
+            prompt = f"""
+            Create a title for the following conversation:
+            {messages}
+
+            The title should be at most 5 words and ideally less than 3 words.
+
+            Return ONLY the title, and nothing else.
+            """
+            log(f'prompt: {prompt}')
+            title = log_llm_call(prompt, state['llm'], state['user_message_id'], 'CreateConversationTitle')[:100]
             query = f"INSERT INTO conversations (id, user_id, created_at, updated_at, title) VALUES (%s, %s, %s, %s, %s)"
             values = (conversation_id, state['user_id'], get_timestamp(), get_timestamp(), title)
             conn = psycopg2.connect(POSTGRES_ENGINE)
