@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 // import HighchartsData from '@/types/HighchartsData';
 // import HighchartsDataSeries from '@/types/HighchartsDataSeries';
 import ChatData from '@/types/ChatData';
+// import 'highcharts/modules/exporting';
 
 // const texts = [
 //   "Writing query",
@@ -20,6 +21,8 @@ import ChatData from '@/types/ChatData';
 //   "Analyzing query",
 //   "Summarizing data",
 // ];
+
+
 
 
 const QueryStatus = ({text}: {text: string}) => {
@@ -86,11 +89,86 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const [isLoading, setIsLoading] = useState(false);
 	const [status, setStatus] = useState('Analyzing query');
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const chartRef = useRef<HighchartsReact.RefObject>(null);
+	const hasExportedRef = useRef(false);
 	// const [status, setStatus] = useState('');
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 	};
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+	const safeExportChartToS3 = (chart: Highcharts.Chart) => {
+		if (hasExportedRef.current) return;
+		hasExportedRef.current = true;
+		exportChartToS3(chart);
+	};
+
+	const exportChartToS3 = async (chart: Highcharts.Chart) => {
+		console.log(`exportChartToS3`)
+		// chartRef.current = { chart };
+
+		try {
+			// Get the Highcharts chart instance
+			// const svg = Highcharts.charts[0]?.getSVG();
+			const svg = chart.getSVG();
+			if (!svg) {
+				console.error("Could not get SVG from chart");
+				return;
+			}
+			const canvas = document.createElement('canvas');
+			canvas.width = 600;  // adjust as needed
+			canvas.height = 400;
+			const ctx = canvas.getContext('2d');
+	
+			const img = new Image();
+			const svgBlob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+			const url = URL.createObjectURL(svgBlob);
+	
+			img.onload = async function () {
+				ctx?.drawImage(img, 0, 0);
+				const pngDataUrl = canvas.toDataURL('image/png');
+	
+				// Convert base64 to blob
+				const byteString = atob(pngDataUrl.split(',')[1]);
+				const mimeString = pngDataUrl.split(',')[0].split(':')[1].split(';')[0];
+				const ab = new ArrayBuffer(byteString.length);
+				const ia = new Uint8Array(ab);
+				for (let i = 0; i < byteString.length; i++) {
+					ia[i] = byteString.charCodeAt(i);
+				}
+				const blob = new Blob([ab], { type: mimeString });
+	
+				// Get a presigned URL from your backend
+				const res = await fetch('http://127.0.0.1:5000/api/get-upload-url', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ filename: `chart-${conversationId}.png` })
+				});
+				const { uploadUrl, fileUrl } = await res.json();
+				console.log(`uploadUrl = ${uploadUrl}`)
+				console.log(`fileUrl = ${fileUrl}`)
+	
+				// Upload to S3
+				await fetch(uploadUrl, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'image/png' },
+					body: blob
+				});
+	
+				// console.log('Uploaded to:', fileUrl);
+				// alert('Chart PNG uploaded to S3!');
+	
+				URL.revokeObjectURL(url);
+			};
+	
+			img.src = url;
+	
+		} catch (error) {
+			console.error('Error exporting chart to S3:', error);
+		}
+	}
+	
+	
 
 	const exportToSql = (sqlString: string) => {
 		console.log(`sqlString`)
@@ -144,6 +222,9 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 		if (textareaRef.current) {
 		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
 		}
+		import('highcharts/modules/exporting').then((module) => {
+			module.default(Highcharts);
+		});
 	  }, []);
 
 	useEffect(() => {
@@ -178,8 +259,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			console.log(`params`)
 			console.log(params.toString())
 			// const eventSource = new EventSource(`http://127.0.0.1:5000/ask?${params.toString()}`);
-			// const eventSource = new EventSource(`http://127.0.0.1:5000/ask_analyst?${params.toString()}`);
-			const eventSource = new EventSource(`http://slant-backend-production.up.railway.app/ask_analyst?${params.toString()}`);
+			const eventSource = new EventSource(`http://127.0.0.1:5000/ask_analyst?${params.toString()}`);
+			// const eventSource = new EventSource(`http://slant-backend-production.up.railway.app/ask_analyst?${params.toString()}`);
 			// const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
 
 			eventSource.onmessage = (event) => {
@@ -511,33 +592,33 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			
 			const highchartsDivs = chatDataDivs.map((chatData: ChatData, index: number) => {
 				const highcharts = chatData.highcharts;
-				let highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
-				if (highchartsOptions) {
-					highchartsOptions = {
-						...highchartsOptions,
-						yAxis: {
-							...highchartsOptions.yAxis,
-							labels: {
-							...((highchartsOptions.yAxis && highchartsOptions.yAxis.labels) || {}),
-							formatter: function () {
-								if (this.value >= 1e9) {
-								return (this.value / 1e9) + 'B';
-								} else if (this.value >= 1e6) {
-								return (this.value / 1e6) + 'M';
-								} else if (this.value >= 1e3) {
-								return (this.value / 1e3) + 'K';
-								}
-								return this.value;
-							}
-							}
-						}
-					};
-				}
+				const highchartsOptions = highcharts.series && highcharts.series.length > 0 ? highcharts : null;
+				// if (highchartsOptions) {
+				// 	highchartsOptions = {
+				// 		...highchartsOptions,
+				// 		yAxis: {
+				// 			...highchartsOptions.yAxis,
+				// 			labels: {
+				// 			...((highchartsOptions.yAxis && highchartsOptions.yAxis.labels) || {}),
+				// 			formatter: function () {
+				// 				if (this.value >= 1e9) {
+				// 				return (this.value / 1e9) + 'B';
+				// 				} else if (this.value >= 1e6) {
+				// 				return (this.value / 1e6) + 'M';
+				// 				} else if (this.value >= 1e3) {
+				// 				return (this.value / 1e3) + 'K';
+				// 				}
+				// 				return this.value;
+				// 			}
+				// 			}
+				// 		}
+				// 	};
+				// }
 				// const highchartsData = message.data?.highcharts_data;
 				const divKey = `${message.id}-${index}`;
 				return (
 					<div key={divKey}>
-						<HighchartsReact highcharts={Highcharts} options={highchartsOptions} />
+						<HighchartsReact highcharts={Highcharts} options={highchartsOptions} ref={chartRef} callback={safeExportChartToS3}/>
 					</div>
 				)
 			})
@@ -600,7 +681,7 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 							onChange={(e) => setInputText(e.target.value)}
 							onKeyPress={handleKeyPress}
 							placeholder="Ask Slant..."
-							className="flex-1 rounded resize-none border p-2 focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent"
+							className="text-black flex-1 rounded resize-none border p-2 focus:outline-none focus:ring-2 focus:ring-[#1373eb] focus:border-transparent"
 							rows={1}
 						/>
 						<button
