@@ -14,6 +14,7 @@ def news_finder() -> pd.DataFrame:
     current_hour = int(time.localtime().tm_hour)
     # CHUNK_SIZE = 4
     CHUNK_SIZE = 0
+    days = [4]
     days = range(CHUNK_SIZE, 80, CHUNK_SIZE) if CHUNK_SIZE > 0 else [1]
     for n_days in days:
         print(f'n_days: {n_days}')
@@ -126,5 +127,5 @@ def news_finder() -> pd.DataFrame:
         clean_tweets['text'] = clean_tweets.text_y.fillna(clean_tweets.text_x)
         clean_tweets[['text_x','text_y','conversation_id']]
         clean_tweets['ind'] = range(len(clean_tweets))
-        generate_news(clean_tweets, n_days)
+        generate_news(clean_tweets, n_days, end_timestamp)
     return True
