@@ -108,314 +108,318 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int, end_timestamp: int):
     upload_data = []
     seen = [x['headline'] for x in upload_data]
     for row in headlines.itertuples():
-        print(f'== {row.headline}\n\n')
-        if row.headline in seen:
-            print('Skipping...')
-            continue
+        try:
+            print(f'== {row.headline}\n\n')
+            if row.headline in seen:
+                print('Skipping...')
+                continue
 
-        ################################
-        #     Query Similar Tweets     #
-        ################################
-        conversation_ids = [int(i) for i in row.conversation_ids]
-        text = ''
-        for tweet in clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].itertuples():
-            text += f'## Tweet Author:\n{tweet.username}\n## Tweet Text:\n{tweet.text}\n\n\n'
-        query = generate_rag_search_query(text)
-        rag_tweets = rag_search_tweets_fn(query, 0, end_timestamp, [], 10)
-        ids = set(conversation_ids + [int(x.id) for x in rag_tweets])
-        ids = "'" + "', '".join([str(x) for x in ids]) + "'"
-        query = f"""
-            with t0 as (
-                select conversation_id
-                , author_id as original_author_id
-                from tweets t
-                where id = conversation_id
-            )
-            select t.*
-            , coalesce(tu.name, tu.username, 'Unknown') as author
-            , tu.username
-            from tweets t
-            join t0
-                on t.conversation_id = t0.conversation_id
-            left join twitter_users tu
-                on t.author_id = tu.id
-            where (t.id in ({ids}) or t.conversation_id in ({ids}))
-                and t.author_id = t0.original_author_id
-            order by t.created_at, t.id
-        """
-        similar_tweets = pg_load_data(query)
-        similar_tweets['date'] = pd.to_datetime(similar_tweets['created_at'], unit='s').apply(lambda x: str(x)[:10])
-        similar_tweets = similar_tweets.groupby(['conversation_id','author_id','username','author','date']).agg({'text': '\n'.join}).reset_index()
-        similar_tweets['headline'] = row.headline
-        similar_tweets['original'] = (similar_tweets.conversation_id.isin(conversation_ids)).astype(int)
-        similar_tweets = similar_tweets.sort_values('original', ascending=False)
-
-
-        ################################
-        #     Extract Project Name     #
-        ################################
-        tweet_text = ''
-        for tweet in similar_tweets.itertuples():
-            if tweet.original == 1:
-                tweet_text += f'**Primary Tweet:**\n'
-            tweet_text += f'## Tweet Author:\n{tweet.username}\n## Tweet Text:\n{tweet.text}\n\n\n'
-        # print(tweet_text)
-
-        prompt = f"""
-        You are an expert at ingesting tweets about the solana blockchain ecosystem and generating a project name that the tweets are about. You will be given a primary tweet and a list of supplemental tweets. Weight the primary tweet more heavily.
-
-        Here is the list of tweets:
-        {tweet_text}
-
-        Your job is to return a string representing the project name that the tweets are about.
-        If you cannot determine the project name, return an empty string.
-
-        Output the project name as a string only, with no explanation.
-        """
-        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-        # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-        response = llm.invoke(prompt)
-        project_name = response.content.replace('"', '')
-        project_name = clean_project_tag(project_name)
-        print(f'Project Name: {project_name}')
-
-
-        #####################################
-        #     Extract Links from Tweets     #
-        #####################################
-        all_tweets = pd.concat([all_tweets, similar_tweets])
-        quoted_tweets = []
-        for tweet in similar_tweets.itertuples():
-            urls = re.findall(r'https://t\.co/\S+', tweet.text)
-            for url in urls:
-                try:
-                    r = requests.get(url)
-                    tweet_url_searches += [{
-                        'headline': row.headline,
-                        'url': r.url,
-                        'status_code': r.status_code,
-                        'text': BeautifulSoup(r.text, 'html.parser').text.strip()
-                    }]
-                    if r.status_code == 200:
-                        cur = {
-                            'url': r.url,
-                            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                            'project': project_name,
-                            'user_message_id': '',
-                            'search_query': query,
-                            'base_url': r.url,
-                            'text': BeautifulSoup(r.text, 'html.parser').text.strip()
-                        }
-                        saved_web_searches += [cur]
-                    elif r.url[:14] == 'https://x.com/' and not 'photos' in r.url and not 'video' in r.url and '/status/' in r.url:
-                        tweet_id = r.url.split('/status/')[1]
-                        tweet_id = int(tweet_id.split('/')[0].split('?')[0])
-                        quoted_tweets.append({
-                            'headline': row.headline,
-                            'id': tweet_id,
-                            'text': BeautifulSoup(r.text, 'html.parser').text.strip()
-                        })
-                except Exception as e:
-                    print(f'Error getting url {url}: {e}')
-                    continue
-        if len(quoted_tweets) > 0:
-            # load any tweets that were referenced in the original tweets
-            quoted_tweets_df = pd.DataFrame(quoted_tweets)
-            ids = "'" + "', '".join([str(x) for x in quoted_tweets_df['id'].unique().tolist()]) + "'"
-            exlude_ids = "'" + "', '".join([str(x) for x in similar_tweets['conversation_id'].unique().tolist()]) + "'"
+            ################################
+            #     Query Similar Tweets     #
+            ################################
+            conversation_ids = [int(i) for i in row.conversation_ids]
+            text = ''
+            for tweet in clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].itertuples():
+                text += f'## Tweet Author:\n{tweet.username}\n## Tweet Text:\n{tweet.text}\n\n\n'
+            query = generate_rag_search_query(text)
+            rag_tweets = rag_search_tweets_fn(query, 0, end_timestamp, [], 10)
+            ids = set(conversation_ids + [int(x.id) for x in rag_tweets])
+            ids = "'" + "', '".join([str(x) for x in ids]) + "'"
             query = f"""
-            select t.*
-            , coalesce(tu.name, tu.username, 'Unknown') as author
-            , tu.username
-            from tweets t
-            left join twitter_users tu
-                on t.author_id = tu.id
-            where (t.id in ({ids}) or t.conversation_id in ({ids}))
-                and t.conversation_id not in ({exlude_ids})
-            order by t.created_at, t.id
+                with t0 as (
+                    select conversation_id
+                    , author_id as original_author_id
+                    from tweets t
+                    where id = conversation_id
+                )
+                select t.*
+                , coalesce(tu.name, tu.username, 'Unknown') as author
+                , tu.username
+                from tweets t
+                join t0
+                    on t.conversation_id = t0.conversation_id
+                left join twitter_users tu
+                    on t.author_id = tu.id
+                where (t.id in ({ids}) or t.conversation_id in ({ids}))
+                    and t.author_id = t0.original_author_id
+                order by t.created_at, t.id
             """
-            new_tweets = pg_load_data(query)
-            new_tweets['date'] = pd.to_datetime(new_tweets['created_at'], unit='s').apply(lambda x: str(x)[:10])
-            new_tweets = new_tweets.groupby(['conversation_id','author_id','username','author','date']).agg({'text': '\n'.join}).reset_index()
-            new_tweets['headline'] = row.headline
-            new_tweets['original'] = 0
-            # print('Loaded', len(new_tweets), 'quoted tweets')
-            similar_tweets = pd.concat([similar_tweets, new_tweets])
+            similar_tweets = pg_load_data(query)
+            similar_tweets['date'] = pd.to_datetime(similar_tweets['created_at'], unit='s').apply(lambda x: str(x)[:10])
+            similar_tweets = similar_tweets.groupby(['conversation_id','author_id','username','author','date']).agg({'text': '\n'.join}).reset_index()
+            similar_tweets['headline'] = row.headline
+            similar_tweets['original'] = (similar_tweets.conversation_id.isin(conversation_ids)).astype(int)
+            similar_tweets = similar_tweets.sort_values('original', ascending=False)
 
 
-        #######################################
-        #     Generate Web Search Results     #
-        #######################################
-        prompt = f"""
-        You are an expert research assistant skilled in transforming social media discussions and article headlines into precise and effective web search queries.
+            ################################
+            #     Extract Project Name     #
+            ################################
+            tweet_text = ''
+            for tweet in similar_tweets.itertuples():
+                if tweet.original == 1:
+                    tweet_text += f'**Primary Tweet:**\n'
+                tweet_text += f'## Tweet Author:\n{tweet.username}\n## Tweet Text:\n{tweet.text}\n\n\n'
+            # print(tweet_text)
 
-        Your task is to generate a **concise and specific search query** that can be used to find recent news articles or web content related to the Solana blockchain ecosystem.
+            prompt = f"""
+            You are an expert at ingesting tweets about the solana blockchain ecosystem and generating a project name that the tweets are about. You will be given a primary tweet and a list of supplemental tweets. Weight the primary tweet more heavily.
 
-        The search query should:
-        - Focus on the key topic or event described in the headline and tweets
-        - Include relevant project names, protocols, people, or themes mentioned
-        - Be phrased as a simple string suitable for search engines (e.g., Google, Tavily)
-        - Exclude unnecessary filler or vague language
-        - Avoid hashtags, emojis, or @usernames unless highly relevant
-        - Include any useful time framing (e.g., “May 2025”, “past week”) if it helps narrow the results
+            Here is the list of tweets:
+            {tweet_text}
 
-        ---
+            Your job is to return a string representing the project name that the tweets are about.
+            If you cannot determine the project name, return an empty string.
 
-        Here is the **headline**:
-        {row.headline}
-
-        Here is the **tweet text**:
-        {text}
-
-        ---
-
-        Output the optimized search query as a **single string only**, with no explanation.
-        """
-        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-        response = llm.invoke(prompt)
-        query = 'Solana blockchain '+response.content.replace('"', '')
-        web_search_prompt = ''
-        if n_days <= 8:
-            web_search_results = tavily_client.search(query, search_depth="basic", include_answer=True, include_images=False, max_results=5, include_raw_content=True)
+            Output the project name as a string only, with no explanation.
+            """
+            llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+            # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+            response = llm.invoke(prompt)
+            project_name = response.content.replace('"', '')
+            project_name = clean_project_tag(project_name)
+            print(f'Project Name: {project_name}')
 
 
-            ############################################
-            #     Generate Prompt for News Article     #
-            ############################################
-            web_search_prompt = '## Web Search Results\n\nUse these web search results to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
-            web_search_prompt = '**Summary**\n' + web_search_results['answer'] + '\n\n'
-            web_search_prompt += '**Pages**\n\n'
-            cutoff_date = datetime.now() - timedelta(days=(n_days * 2) + 14)
-            for r in web_search_results['results']:
-                date = parse_date(r)
-                # print('date:', date)
-                # save the web search results to db
-                cur = {
-                    'url': r['url'],
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'project': project_name,
-                    'user_message_id': '',
-                    'search_query': query,
-                    'base_url': r['url'].split('/')[2],
-                    'text': r['raw_content']
-                }
-                saved_web_searches += [cur]
-                if (date and date > cutoff_date) or not date:
-                    web_search_prompt += f'**{r["title"]}**\n'
-                    web_search_prompt += f'**URL:** {r["url"]}\n'
-                    # web_search_prompt += f'**Date:** {date.strftime("%Y-%m-%d")}\n'
-                    web_search_prompt += f'**Summary:** {r["content"]}\n\n'
-                    if r['raw_content']:
-                        web_search_prompt += f'**Content:** {r["raw_content"][:10000]}\n\n'
-            web_search_prompt += '\n\n'
-        web_search_prompt = web_search_prompt[:20000]
+            #####################################
+            #     Extract Links from Tweets     #
+            #####################################
+            all_tweets = pd.concat([all_tweets, similar_tweets])
+            quoted_tweets = []
+            for tweet in similar_tweets.itertuples():
+                urls = re.findall(r'https://t\.co/\S+', tweet.text)
+                for url in urls:
+                    try:
+                        r = requests.get(url)
+                        tweet_url_searches += [{
+                            'headline': row.headline,
+                            'url': r.url,
+                            'status_code': r.status_code,
+                            'text': BeautifulSoup(r.text, 'html.parser').text.strip()
+                        }]
+                        if r.status_code == 200:
+                            cur = {
+                                'url': r.url,
+                                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                'project': project_name,
+                                'user_message_id': '',
+                                'search_query': query,
+                                'base_url': r.url,
+                                'text': BeautifulSoup(r.text, 'html.parser').text.strip()
+                            }
+                            saved_web_searches += [cur]
+                        elif r.url[:14] == 'https://x.com/' and not 'photos' in r.url and not 'video' in r.url and '/status/' in r.url:
+                            tweet_id = r.url.split('/status/')[1]
+                            tweet_id = int(tweet_id.split('/')[0].split('?')[0])
+                            quoted_tweets.append({
+                                'headline': row.headline,
+                                'id': tweet_id,
+                                'text': BeautifulSoup(r.text, 'html.parser').text.strip()
+                            })
+                    except Exception as e:
+                        print(f'Error getting url {url}: {e}')
+                        continue
+            if len(quoted_tweets) > 0:
+                # load any tweets that were referenced in the original tweets
+                quoted_tweets_df = pd.DataFrame(quoted_tweets)
+                ids = "'" + "', '".join([str(x) for x in quoted_tweets_df['id'].unique().tolist()]) + "'"
+                exlude_ids = "'" + "', '".join([str(x) for x in similar_tweets['conversation_id'].unique().tolist()]) + "'"
+                query = f"""
+                select t.*
+                , coalesce(tu.name, tu.username, 'Unknown') as author
+                , tu.username
+                from tweets t
+                left join twitter_users tu
+                    on t.author_id = tu.id
+                where (t.id in ({ids}) or t.conversation_id in ({ids}))
+                    and t.conversation_id not in ({exlude_ids})
+                order by t.created_at, t.id
+                """
+                new_tweets = pg_load_data(query)
+                new_tweets['date'] = pd.to_datetime(new_tweets['created_at'], unit='s').apply(lambda x: str(x)[:10])
+                new_tweets = new_tweets.groupby(['conversation_id','author_id','username','author','date']).agg({'text': '\n'.join}).reset_index()
+                new_tweets['headline'] = row.headline
+                new_tweets['original'] = 0
+                # print('Loaded', len(new_tweets), 'quoted tweets')
+                similar_tweets = pd.concat([similar_tweets, new_tweets])
 
-        if not 'score' in similar_tweets.columns:
-            similar_tweets = pd.merge(similar_tweets, clean_tweets[['conversation_id','score']], on='conversation_id', how='left')
-        similar_tweets['score'] = similar_tweets['score'].fillna(0)
-        similar_tweets = similar_tweets.sort_values('score', ascending=False)
-        primary_tweet_prompt = ''
-        for tweet in similar_tweets[similar_tweets.original == 1].itertuples():
-            primary_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text}\n\n\n'
 
-        supplemental_tweet_prompt = '## Supplemental Tweets\n\nUse these tweets to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
-        for tweet in similar_tweets[similar_tweets.original == 0].itertuples():
-            supplemental_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text[:5000]}\n\n\n'
-        supplemental_tweet_prompt = supplemental_tweet_prompt[:20000]
-        
-        query = f"""
-        select distinct k.name, k.username, k.description, case when p.tags::text ilike '%news%' then 1 else 0 end as news_tag
-        from twitter_kols k
-        join tweets t
-            on k.id = t.author_id
-        left join projects p
-            on k.associated_project_id = p.id
-        where t.id in ({ids})
-            and not k.username in ('solana','DegenerateNews')
-        limit 10
-        """
-        authors = pg_load_data(query)
-        project_query = row.headline + '\n\n' + '\n'.join([f'{a.name} - {a.username} - {a.description}' for a in authors.itertuples()])
-        projects = rag_search_projects_from_prompt(project_query, 5)
-        # for p in projects:
-        #     print(p)
-        projects = ' - ' + ' - '.join([p.name for p in projects])
+            #######################################
+            #     Generate Web Search Results     #
+            #######################################
+            prompt = f"""
+            You are an expert research assistant skilled in transforming social media discussions and article headlines into precise and effective web search queries.
+
+            Your task is to generate a **concise and specific search query** that can be used to find recent news articles or web content related to the Solana blockchain ecosystem.
+
+            The search query should:
+            - Focus on the key topic or event described in the headline and tweets
+            - Include relevant project names, protocols, people, or themes mentioned
+            - Be phrased as a simple string suitable for search engines (e.g., Google, Tavily)
+            - Exclude unnecessary filler or vague language
+            - Avoid hashtags, emojis, or @usernames unless highly relevant
+            - Include any useful time framing (e.g., “May 2025”, “past week”) if it helps narrow the results
+
+            ---
+
+            Here is the **headline**:
+            {row.headline}
+
+            Here is the **tweet text**:
+            {text}
+
+            ---
+
+            Output the optimized search query as a **single string only**, with no explanation.
+            """
+            llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+            response = llm.invoke(prompt)
+            query = 'Solana blockchain '+response.content.replace('"', '')
+            web_search_prompt = ''
+            if n_days <= 8:
+                web_search_results = tavily_client.search(query, search_depth="basic", include_answer=True, include_images=False, max_results=5, include_raw_content=True)
 
 
-        # search the web
-        prompt = f"""
-        You are an expert news writer focused on the crypto and blockchain ecosystem, especially the Solana blockchain.
+                ############################################
+                #     Generate Prompt for News Article     #
+                ############################################
+                web_search_prompt = '## Web Search Results\n\nUse these web search results to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
+                web_search_prompt = '**Summary**\n' + web_search_results['answer'] + '\n\n'
+                web_search_prompt += '**Pages**\n\n'
+                cutoff_date = datetime.now() - timedelta(days=(n_days * 2) + 14)
+                for r in web_search_results['results']:
+                    date = parse_date(r)
+                    # print('date:', date)
+                    # save the web search results to db
+                    cur = {
+                        'url': r['url'],
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'project': project_name,
+                        'user_message_id': '',
+                        'search_query': query,
+                        'base_url': r['url'].split('/')[2],
+                        'text': r['raw_content']
+                    }
+                    saved_web_searches += [cur]
+                    if (date and date > cutoff_date) or not date:
+                        web_search_prompt += f'**{r["title"]}**\n'
+                        web_search_prompt += f'**URL:** {r["url"]}\n'
+                        # web_search_prompt += f'**Date:** {date.strftime("%Y-%m-%d")}\n'
+                        web_search_prompt += f'**Summary:** {r["content"]}\n\n'
+                        if r['raw_content']:
+                            web_search_prompt += f'**Content:** {r["raw_content"][:10000]}\n\n'
+                web_search_prompt += '\n\n'
+            web_search_prompt = web_search_prompt[:20000]
 
-        Your job is to synthesize multiple sources of information into a well-written, concise, and informative news article. Your article should read as if it were published on a professional crypto news site.
+            if not 'score' in similar_tweets.columns:
+                similar_tweets = pd.merge(similar_tweets, clean_tweets[['conversation_id','score']], on='conversation_id', how='left')
+            similar_tweets['score'] = similar_tweets['score'].fillna(0)
+            similar_tweets = similar_tweets.sort_values('score', ascending=False)
+            primary_tweet_prompt = ''
+            for tweet in similar_tweets[similar_tweets.original == 1].itertuples():
+                primary_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text}\n\n\n'
 
-        You will be given:
-        - A **proposed headline** (you may reword this slightly for clarity or style)
-        - A list of **related tweets** discussing the topic
-        - A set of **web search results** with relevant external content
+            supplemental_tweet_prompt = '## Supplemental Tweets\n\nUse these tweets to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
+            for tweet in similar_tweets[similar_tweets.original == 0].itertuples():
+                supplemental_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text[:5000]}\n\n\n'
+            supplemental_tweet_prompt = supplemental_tweet_prompt[:20000]
+            
+            query = f"""
+            select distinct k.name, k.username, k.description, case when p.tags::text ilike '%news%' then 1 else 0 end as news_tag
+            from twitter_kols k
+            join tweets t
+                on k.id = t.author_id
+            left join projects p
+                on k.associated_project_id = p.id
+            where t.id in ({ids})
+                and not k.username in ('solana','DegenerateNews')
+            limit 10
+            """
+            authors = pg_load_data(query)
+            project_query = row.headline + '\n\n' + '\n'.join([f'{a.name} - {a.username} - {a.description}' for a in authors.itertuples()])
+            projects = rag_search_projects_from_prompt(project_query, 5)
+            # for p in projects:
+            #     print(p)
+            projects = ' - ' + ' - '.join([p.name for p in projects])
 
-        Your output must be a JSON object with the following fields:
-        - headline: a string representing the headline for the news story
-        - summary: a string representing the tl;dr for the news story
-        - key_takeaway: a string representing the key takeaway for the news story, with an emphasis on how it will impact the current "meta" of the Solana ecosystem if possible. Keep it short and concise, no frills.
-        - sources: a list of strings representing the sources for the news story. We prefer Twitter (X) URLs over other sources.
-        - projects: a list of strings representing the projects mentioned in the news story. you MUST choose from the following list. if none of the projects are mentioned, return an empty list.
-            {projects}
-        - tag: a single string representing the tag for the news story. For the tag, choose between the following:
-            - "DeFi" (decentralized finance like lending, borrowing, trading, etc.)
-            - "NFTs"
-            - "Memecoins"
-            - "Gaming"
-            - "DePIN" (decentralized physical infrastructure like Helium, Render, Hivemapper, etc.)
-            - "Community" (events, groups, real world / IRL, etc.)
-            - "Payments" (stablecoins, payment networks, etc.)
-            - "Infrastructure" (blockchain infrastructure, validators, etc.)
-            - "Legal" (regulations, partnerships, SEC, etc.)
-            - "DAOs" (decentralized autonomous organizations, governance, etc.)
-            - "Other" (if the news story does not fit into any of the above categories)
-        However, if you do not feel like you have enough information to write a news article or the information is not worthy of a news article, return an empty JSON object.
-        ---
 
-        Guidelines:
-        - Focus on accuracy, clarity, and conciseness
-        - Do not speculate—only include information supported by the tweets or search results
-        - You may reword and summarize for readability, but preserve factual integrity
-        - Prioritize recent events or developments
-        - Keep tone neutral and informative
+            # search the web
+            prompt = f"""
+            You are an expert news writer focused on the crypto and blockchain ecosystem, especially the Solana blockchain.
 
-        # Primary Information
-        ## Proposed headline:
-        Here is the **proposed headline**:
-        {row.headline}
+            Your job is to synthesize multiple sources of information into a well-written, concise, and informative news article. Your article should read as if it were published on a professional crypto news site.
 
-        ## Tweets:
-        Here are the **primary tweets** the article should be based on:
-        {primary_tweet_prompt}
+            You will be given:
+            - A **proposed headline** (you may reword this slightly for clarity or style)
+            - A list of **related tweets** discussing the topic
+            - A set of **web search results** with relevant external content
 
-        ---
-        
-        # Supplementary Information
-        {web_search_prompt}
+            Your output must be a JSON object with the following fields:
+            - headline: a string representing the headline for the news story
+            - summary: a string representing the tl;dr for the news story
+            - key_takeaway: a string representing the key takeaway for the news story, with an emphasis on how it will impact the current "meta" of the Solana ecosystem if possible. Keep it short and concise, no frills.
+            - sources: a list of strings representing the sources for the news story. We prefer Twitter (X) URLs over other sources.
+            - projects: a list of strings representing the projects mentioned in the news story. you MUST choose from the following list. if none of the projects are mentioned, return an empty list.
+                {projects}
+            - tag: a single string representing the tag for the news story. For the tag, choose between the following:
+                - "DeFi" (decentralized finance like lending, borrowing, trading, etc.)
+                - "NFTs"
+                - "Memecoins"
+                - "Gaming"
+                - "DePIN" (decentralized physical infrastructure like Helium, Render, Hivemapper, etc.)
+                - "Community" (events, groups, real world / IRL, etc.)
+                - "Payments" (stablecoins, payment networks, etc.)
+                - "Infrastructure" (blockchain infrastructure, validators, etc.)
+                - "Legal" (regulations, partnerships, SEC, etc.)
+                - "DAOs" (decentralized autonomous organizations, governance, etc.)
+                - "Other" (if the news story does not fit into any of the above categories)
+            However, if you do not feel like you have enough information to write a news article or the information is not worthy of a news article, return an empty JSON object.
+            ---
 
-        {supplemental_tweet_prompt}
+            Guidelines:
+            - Focus on accuracy, clarity, and conciseness
+            - Do not speculate—only include information supported by the tweets or search results
+            - You may reword and summarize for readability, but preserve factual integrity
+            - Prioritize recent events or developments
+            - Keep tone neutral and informative
 
-        ---
-        
-        Output the JSON object in the format above. Do not include any extra commentary or explanation.
-        """
+            # Primary Information
+            ## Proposed headline:
+            Here is the **proposed headline**:
+            {row.headline}
 
-        # llm = ChatOpenAI(model="gpt-o4-mini", temperature=0)
-        llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
-        # llm = ChatOpenAI(model="gpt-4.1", temperature=0)
-        response = llm.invoke(prompt)
-        # print(response.content)
-        j = parse_json_from_llm(response.content, llm)
-        j['projects'] = list(set(j['projects']))
-        j['score'] = round(clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].score.astype(float).max(), 2)
-        j['timestamp'] = clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].created_at.max()
-        j['original_tweets'] = clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].sort_values('score', ascending=False).conversation_id.tolist()
-        print(j['key_takeaway'])
+            ## Tweets:
+            Here are the **primary tweets** the article should be based on:
+            {primary_tweet_prompt}
 
-        upload_data += [j]
+            ---
+            
+            # Supplementary Information
+            {web_search_prompt}
+
+            {supplemental_tweet_prompt}
+
+            ---
+            
+            Output the JSON object in the format above. Do not include any extra commentary or explanation.
+            """
+
+            # llm = ChatOpenAI(model="gpt-o4-mini", temperature=0)
+            llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0)
+            # llm = ChatOpenAI(model="gpt-4.1", temperature=0)
+            response = llm.invoke(prompt)
+            # print(response.content)
+            j = parse_json_from_llm(response.content, llm)
+            j['projects'] = list(set(j['projects']))
+            j['score'] = round(clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].score.astype(float).max(), 2)
+            j['timestamp'] = clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].created_at.max()
+            j['original_tweets'] = clean_tweets[clean_tweets.conversation_id.isin(conversation_ids)].sort_values('score', ascending=False).conversation_id.tolist()
+            print(j['key_takeaway'])
+
+            upload_data += [j]
+        except Exception as e:
+            print(f'Error generating news: {e}')
+            continue
 
     upload_df = pd.DataFrame(upload_data)
     # upload_df['n_days'] = n_days
