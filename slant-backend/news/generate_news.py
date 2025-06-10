@@ -306,8 +306,9 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int, end_timestamp: int):
                     # web_search_prompt += f'**Date:** {date.strftime("%Y-%m-%d")}\n'
                     web_search_prompt += f'**Summary:** {r["content"]}\n\n'
                     if r['raw_content']:
-                        web_search_prompt += f'**Content:** {r["raw_content"]}\n\n'
+                        web_search_prompt += f'**Content:** {r["raw_content"][:10000]}\n\n'
             web_search_prompt += '\n\n'
+        web_search_prompt = web_search_prompt[:20000]
 
         if not 'score' in similar_tweets.columns:
             similar_tweets = pd.merge(similar_tweets, clean_tweets[['conversation_id','score']], on='conversation_id', how='left')
@@ -319,7 +320,8 @@ def generate_news(clean_tweets: pd.DataFrame, n_days: int, end_timestamp: int):
 
         supplemental_tweet_prompt = '## Supplemental Tweets\n\nUse these tweets to supplement the primary information. If they are helpful, use to help write the article. If they are not relevant, ignore them.\n\n'
         for tweet in similar_tweets[similar_tweets.original == 0].itertuples():
-            supplemental_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text}\n\n\n'
+            supplemental_tweet_prompt += f'Twitter URL: https://x.com/{tweet.username}/status/{tweet.conversation_id}\n\nTweet Date: {tweet.date}\n\nText: {tweet.text[:5000]}\n\n\n'
+        supplemental_tweet_prompt = supplemental_tweet_prompt[:20000]
         
         query = f"""
         select distinct k.name, k.username, k.description, case when p.tags::text ilike '%news%' then 1 else 0 end as news_tag
