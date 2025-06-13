@@ -13,6 +13,9 @@ import { motion, AnimatePresence } from "framer-motion";
 // import HighchartsData from '@/types/HighchartsData';
 // import HighchartsDataSeries from '@/types/HighchartsDataSeries';
 import ChatData from '@/types/ChatData';
+import ConversationsPanel from './ConversationsPanel';
+import { generateUrl } from '@/utils/utils';
+import { useConversation } from '@/context/ConversationContext';
 // import 'highcharts/modules/exporting';
 
 // const texts = [
@@ -91,6 +94,7 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const chartRef = useRef<HighchartsReact.RefObject>(null);
 	const hasExportedRef = useRef(false);
+	const { conversation_id } = useConversation();
 	// const [status, setStatus] = useState('');
 	const scrollToBottom = () => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,7 +143,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 				const blob = new Blob([ab], { type: mimeString });
 	
 				// Get a presigned URL from your backend
-				const res = await fetch('http://127.0.0.1:5000/api/get-upload-url', {
+				const url = generateUrl('/api/get-upload-url');
+				const res = await fetch(url, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ filename: `chart-${conversationId}.png` })
@@ -216,8 +221,80 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`; // set to scrollHeight
 		//   setInputHeight(textareaRef.current.scrollHeight);
 		}
-	  };
-	
+	};
+
+	const fetchConversation = async (conversationId: string) => {
+		const url = generateUrl('/api/reload-conversation');
+		const res = await fetch(url, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ conversation_id: conversationId })
+		});
+		const data = await res.json();
+		console.log(`fetchConversation data`)
+		console.log(data)
+		const messages = [];
+		for (let i = 0; i < data.messages.length; i++) {
+			const message = data.messages[i];
+			if (message.sender === 'user') {
+				const userMessage: Message = {
+					id: message.id,
+					content: message.content,
+					sender: 'user',
+					data: null,
+					timestamp: message.timestamp,
+					query: ''
+				};
+				messages.push(userMessage);
+			}
+			else {
+				const flipsideData = message.flipside_sql_query_result;
+				const flipsideSql = message.flipside_sql_query;
+				let highchartsOptionsList = message.highcharts || [];
+				console.log(`highchartsOptionsList`)
+				console.log(highchartsOptionsList)
+				const chatData: ChatData[] = [];
+				try {
+					if (typeof highchartsOptionsList === "string") {
+						highchartsOptionsList = JSON.parse(highchartsOptionsList)
+					}
+					console.log(`highchartsOptionsList`)
+					console.log(highchartsOptionsList)
+					for (let i = 0; i < highchartsOptionsList.length; i++) {
+						const highchartsOptions = highchartsOptionsList[i];
+						console.log(`highchartsOptions`)
+						console.log(highchartsOptions)
+						console.log(`highchartsOptions.xAxis`)
+						console.log(highchartsOptions.xAxis)
+						highchartsOptions['credits'] = {'enabled': false}
+						chatData.push({
+							highcharts: highchartsOptions,
+							highcharts_data: null,
+							flipside_data: flipsideData,
+							flipside_sql: flipsideSql,
+						});
+					}
+				} catch (error) {
+					console.error('Error parsing highcharts options:', error);
+				}
+				const botMessage: Message = {
+					id: message.id,
+					content: message.content,
+					sender: 'bot',
+					data: chatData,
+					timestamp: message.timestamp,
+					query: ''
+				};
+				messages.push(botMessage);
+			}
+		}
+		console.log(`new messages`)
+		console.log(messages)
+		setMessages(messages);
+		// setMessages(data.messages);
+		// setStatus(data.status);
+		// setIsLoading(false);
+	}
 	  useEffect(() => {
 		if (textareaRef.current) {
 		  textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
@@ -226,6 +303,13 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			module.default(Highcharts);
 		});
 	  }, []);
+	  useEffect(() => {
+		console.log(`ChatInterface conversation_id changed`)
+		console.log(conversation_id)
+		if (conversation_id) {
+			fetchConversation(conversation_id);
+		}
+	  }, [conversation_id]);
 
 	useEffect(() => {
 		scrollToBottom();
@@ -249,7 +333,6 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 
 	const fetchSlant = async (query: string) => {
 		try {
-			// const url = "http://127.0.0.1:5000/ask_sharky"
 			setStatus('Analyzing query');
 			const params = new URLSearchParams({
 				query,
@@ -258,10 +341,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			});
 			console.log(`params`)
 			console.log(params.toString())
-			// const eventSource = new EventSource(`http://127.0.0.1:5000/ask?${params.toString()}`);
-			const eventSource = new EventSource(`http://127.0.0.1:5000/ask_analyst?${params.toString()}`);
-			// const eventSource = new EventSource(`http://slant-backend-production.up.railway.app/ask_analyst?${params.toString()}`);
-			// const eventSource = new EventSource(`https://slant-backend-production.up.railway.app/ask?${params.toString()}`);
+			const backendUrl = generateUrl('/ask_analyst');
+			const eventSource = new EventSource(`${backendUrl}?${params.toString()}`);
 
 			eventSource.onmessage = (event) => {
 				console.log("SSE update:");
@@ -295,87 +376,29 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 						const flipsideData = parsedData?.flipside_sql_query_result;
 						const flipsideSql = parsedData?.flipside_sql_query;
 						let highchartsOptionsList = parsedData?.highcharts || [];
-						// let highchartsDataList = parsedData?.highcharts_datas || [];
 						console.log(`highchartsOptionsList`)
 						console.log(highchartsOptionsList)
-						// console.log(`highchartsDataList`)
-						// console.log(highchartsDataList)
 						const chatData: ChatData[] = [];
 						try {
 							if (typeof highchartsOptionsList === "string") {
 								highchartsOptionsList = JSON.parse(highchartsOptionsList)
 							}
-							// if (typeof highchartsDataList === "string") {
-							// 	highchartsDataList = JSON.parse(highchartsDataList)
-							// }
 							console.log(`highchartsOptionsList`)
 							console.log(highchartsOptionsList)
 							for (let i = 0; i < highchartsOptionsList.length; i++) {
 								const highchartsOptions = highchartsOptionsList[i];
-								// const highchartsData = highchartsDataList[i];
 								console.log(`highchartsOptions`)
 								console.log(highchartsOptions)
 								console.log(`highchartsOptions.xAxis`)
 								console.log(highchartsOptions.xAxis)
-								// const highchartsDataParsed: HighchartsData = typeof highchartsData === "string" ? JSON.parse(highchartsData) : highchartsData;
-								// console.log(`highchartsDataParsed`)
-								// console.log(highchartsDataParsed)
 								highchartsOptions['credits'] = {'enabled': false}
-								// const { x, series, mode } = highchartsDataParsed;
-								// console.log(`highcharts mode = ${mode}`)
-								// console.log(`highcharts series`)
-								// console.log(series)
-								// console.log(`highcharts x`)
-								// console.log(x)
-	
-								// const scales = {};
-	
-								// if (mode === "timestamp") {
-								// 	// Each data point already has its own `x` in the backend
-								// 	highchartsOptions.xAxis = { type: "datetime" };
-								// 	// highchartsOptions.series = series;
-	
-								// 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-								// 	highchartsOptions.series = highchartsOptions.series.map((seriesConfig: any) => {
-								// 		const matchedSeries = series.find(
-								// 			(s: HighchartsDataSeries) => s.name.toLowerCase() === seriesConfig.column.toLowerCase() || s.name.toLowerCase() === seriesConfig.name.toLowerCase()
-								// 		);
-								// 		if (matchedSeries) {
-								// 			return {
-								// 				...seriesConfig,
-								// 				data: matchedSeries.data
-								// 			};
-								// 		}
-								// 		return seriesConfig;
-								// 	});
-								//   } else {
-								// 	// highchartsOptions.xAxis = { categories: x };
-								// 	highchartsOptions.series = series.map((s: HighchartsDataSeries) => ({
-								// 	  ...s,
-								// 	  data: s.data
-								// 	}));
-								// 	console.log(`highchartsOptions`)
-								// 	console.log(highchartsOptions)
-								// }
 								chatData.push({
 									highcharts: highchartsOptions,
 									highcharts_data: null,
 									flipside_data: flipsideData,
 									flipside_sql: flipsideSql,
-									// highcharts_data: highchartsData,
-									// flipside_data: highchartsData
 								});
-								// const series = highchartsOptions.series.map(({ name, column }: { name: string, column: string }) => ({
-								// 	name,
-								// 	data: highchartsData.map((row: any) => row[column])
-								// }));
-								// console.log(`series`)
-								// console.log(series)
-								// highchartsOptions.series = series;
-								// console.log(`highchartsOptions`)
-								// console.log(highchartsOptions)
 							}
-
 						} catch (error) {
 							console.error('Error parsing highcharts options:', error);
 						}
@@ -414,56 +437,6 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 			return () => {
 				eventSource.close();
 			};
-
-			const url = "http://127.0.0.1:5000/ask"
-			// const url = "https://slant-backend-production.up.railway.app/ask_sharky"
-			const body = {
-				"query": query,
-				"conversation_id": conversationId
-			}
-			const response = await fetch(url, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				body: JSON.stringify(body)
-			})
-			console.log(`response`)
-			console.log(response)
-			const result = await response.json()
-
-			if (result.error) {
-				console.error('Error fetching data:', result.error);
-				const msg = 'Sorry, I couldn\'t understand your question. Please try again.'
-				const botMessage: Message = {
-					id: (Date.now() + 1).toString(),
-					content: msg,
-					sender: 'bot',
-					data: null,
-					timestamp: new Date(),
-					// data: null,
-					query: query
-				};
-				setMessages(prev => [...prev, botMessage]);
-			} else {
-				// Process the successful response
-				const msg = result.response
-				console.log(`data`)
-				console.log(result.data)
-				const data = result.data ? JSON.parse(JSON.stringify(result.data)) : null
-				console.log(`parsed data`)
-				console.log(data)
-				const botMessage: Message = {
-					id: (Date.now() + 1).toString(),
-					content: msg,
-					data: data,
-					sender: 'bot',
-					timestamp: new Date(),
-					// data: null,
-					query: query
-				};
-				setMessages(prev => [...prev, botMessage]);
-			}
 		}
 		catch (error) {
 			console.error('Error fetching data:', error);
@@ -520,6 +493,8 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 		// 	</ol>
 		// </div> : null;
 		return(
+			<div className="flex flex-col justify-start h-full">
+				<ConversationsPanel />
 			<div className="flex items-center justify-center min-h-screen sm:p-12 flex flex-col items-center justify-center p-6">
 				<div className="flex flex-col h-full w-full sm:w-3/5 m-auto rounded-md pb-20">
 					<div className='text-6xl font-semibold text-white p-10 text-center'>Ask for alpha</div>
@@ -564,6 +539,7 @@ const ChatInterface = ({ userId, conversationId }: ChatInterfaceProps) => {
 						</button>
 					</div>
 				</div>
+			</div>
 			</div>
 		)
 	}

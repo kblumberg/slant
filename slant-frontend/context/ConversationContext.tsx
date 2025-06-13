@@ -18,6 +18,12 @@ export const ConversationProvider = ({ children }: { children: ReactNode }) => {
     setConversationId(convo_id);
   }, []);
 
+  useEffect(() => {
+    if (conversation_id) {
+      console.log('Conversation ID changed:', conversation_id);
+    }
+  }, [conversation_id]);
+
   return (
     <ConversationContext.Provider value={{ conversation_id, setConversationId }}>
       {children}

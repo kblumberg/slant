@@ -11,6 +11,8 @@ from ai.tools.utils.utils import log_llm_call
 from db.add_flipside_table_names import parse_tables_from_query
 
 def flipside_tables_from_example_queries(state: JobState) -> JobState:
+    if state['question_type'] == 'other':
+        return {'completed_tools': ["FlipsideTablesFromExampleQueries"]}
     queries = '\n'.join(state['flipside_example_queries']['text'].values)
     j = parse_tables_from_query(queries)
 

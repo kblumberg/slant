@@ -9,6 +9,8 @@ from ai.tools.utils.utils import read_schemas, log_llm_call
 from db.flipside.rag_search_queries import rag_search_queries
 
 def refine_flipside_query_prompt(state: JobState) -> JobState:
+    if state['question_type'] == 'other':
+        return {'completed_tools': ["RefineFlipsideQueryPrompt"]}
     tokens = list(set([token for x in state['analyses'] for token in x.tokens]))
     projects = list(set([ x.project for x in state['analyses']]))
     example_queries='\n\n'.join(state['flipside_example_queries'].text.tolist())

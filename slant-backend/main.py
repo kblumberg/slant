@@ -14,6 +14,8 @@ from api.news.load_news import load_news
 from ai.tools.slant.news_finder import news_finder
 from flask import Flask, jsonify, request, Response, stream_with_context
 from api.slant.get_upload_url import get_upload_url
+from api.slant.load_conversations import load_conversations
+from api.slant.reload_conversation import reload_conversation
 
 app = Flask(__name__)
 CORS(app)
@@ -49,6 +51,22 @@ def get_upload_url_route():
     if not filename:
         return jsonify({'error': 'Missing filename'}), 400
     return get_upload_url(filename)
+
+@app.route('/api/load-conversations', methods=['POST'])
+def load_conversations_route():
+    data = request.json
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Missing user_id'}), 400
+    return load_conversations(user_id)
+
+@app.route('/api/reload-conversation', methods=['POST'])
+def reload_conversation_route():
+    data = request.json
+    conversation_id = data.get('conversation_id')
+    if not conversation_id:
+        return jsonify({'error': 'Missing conversation_id'}), 400
+    return reload_conversation(conversation_id)
 
 
 @app.route('/update_tweets')
