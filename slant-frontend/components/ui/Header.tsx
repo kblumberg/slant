@@ -1,6 +1,6 @@
 'use client';
 
-// import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import slantRounded from '../../public/images/logos/slant-rounded.png';
 
 const Header = () => {
@@ -11,9 +11,9 @@ const Header = () => {
                     <img src={slantRounded.src} alt="Slant Logo" className="h-6 w-6 mr-2" />
                     Slant
                 </div>
-                {/* <div className="walletContainer">
+                <div className="walletContainer">
                     <WalletMultiButton />
-                </div> */}
+                </div>
             </div>
             <div className="flex items-center pt-2 pl-4 bg-gradient-to-b from-[#101218] to-transparent"></div>
         </div>

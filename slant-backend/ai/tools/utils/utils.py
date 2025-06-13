@@ -264,6 +264,12 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
 
     # possible_keys = ['tweets_summary', 'web_search_summary', 'projects', 'flipside_example_queries','schema','transactions','additional_context_summary','other_info','program_ids','flipside_determine_approach','start_timestamp']
     possible_keys = ['tweets_summary', 'web_search_summary', 'projects', 'flipside_example_queries','schema','transactions','additional_context_summary','other_info','program_ids','flipside_determine_approach','flipside_investigations']
+
+
+    if state['question_type'] == 'other':
+        exclude_keys = exclude_keys + ['schema','transactions','program_ids']
+        possible_keys = possible_keys + ['tweets', 'web_search']
+
     transaction_text = """
         - Use the following example transactions for inspiration and to understand what the correct addresses, program ids, etc. are.
         - Prioritize this information over the other reference materials, since it is provided directly from the user
@@ -273,9 +279,9 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
     """
     indices = state['flipside_subset_example_queries']
     log(f'indices: {indices}')
-    queries_text = state['flipside_example_queries'].text.apply(lambda x: x[:10000]).values
+    queries_text = state['flipside_example_queries'].text.apply(lambda x: x[:10000]).values if len(state['flipside_example_queries']) > 0 else []
     flipside_example_queries = ''
-    indices = indices if len(indices) else [int (x) for x in range(len(queries_text))]
+    indices = indices if len(indices) else [int (x) for x in range(len(queries_text))] if len(queries_text) > 0 else []
     for i in range(len(indices)):
         ind = indices[i]
         flipside_example_queries = flipside_example_queries + '### Example Query #' + str(i + 1) + ':\n' + remove_sql_comments(queries_text[ind]) + '\n\n'
@@ -296,6 +302,8 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
         return val
     d = {
         'tweets_summary': ('SUMMARY OF TWEETS', '', None)
+        , 'tweets': ('TWEETS', '', lambda state: '\n'.join([ str(tweet) for tweet in state['tweets']]))
+        , 'web_search': ('WEB SEARCH RESULTS', '', None)
         , 'web_search_summary': ('SUMMARY OF WEB SEARCH RESULTS', '', None)
         , 'projects': ('PROJECTS', '', lambda state: '\n'.join([ str(project.name) + ': ' + str(project.description) for project in state['projects']]))
         , 'flipside_example_queries': ('RELATED FLIPSIDE QUERIES', 'Here are some example queries written by other analysts. They may not be respresent the best or most optimized way to approach your analysis, but feel free to use them for inspiration and to understand available schema and patterns, incorporating them into your query if you think they are helpful. If you know how to write the query just using the schemas and other reference materials, feel free to ignore these queries:\n\n', lambda state: flipside_example_queries)
@@ -311,7 +319,7 @@ def state_to_reference_materials(state: JobState, exclude_keys: list[str] = [], 
     keys = [k for k in possible_keys if k not in exclude_keys]
     keys = [k for k in keys if include_keys is None or k in include_keys]
     for k in keys:
-        # log(k)
+        log(k)
         new_context = ''
         if not k in state.keys():
             new_context = '\n**' + d[k][0] + '**:\n' + d[k][1] + '\n\n'

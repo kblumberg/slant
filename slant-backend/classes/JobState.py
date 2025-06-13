@@ -16,8 +16,10 @@ def append(a, b):
     return a + b
 
 class JobState(TypedDict):
+    agent_message_id: str
     user_message_id: str
     user_prompt: str
+    question_type: str
     response: str
     schema: str
     pre_query_clarifications: str
@@ -79,6 +81,7 @@ class JobState(TypedDict):
     def to_dict(self):
         return {
             'user_prompt': self.user_prompt,
+            'question_type': self.question_type,
             'response': self.response,
             'follow_up_questions': self.follow_up_questions,
             'pre_query_clarifications': self.pre_query_clarifications,

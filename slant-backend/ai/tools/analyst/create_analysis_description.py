@@ -19,17 +19,17 @@ def create_analysis_description(state: JobState) -> JobState:
 
     Your task is to read a message history between a user and an AI assistant and produce a clear, concise summary of the *requested blockchain analysis*. This summary will be used to guide further technical steps (e.g. data queries, report generation, etc.).
 
-    The summary should focus only on what the user ultimately wants analyzed, not on clarifying back-and-forth. Be specific, but concise.
+    The summary should focus only on what the user ultimately wants answered, not on clarifying back-and-forth. Be specific, but concise.
 
     Make sure to include timeframes if mentioned.
 
-    Ignore small talk or general curiosity—just extract the user’s core analytical request(s).
+    Ignore small talk or general curiosity—just extract the user’s core request(s).
 
     Format your answer as a short paragraph. Be concise and direct. Do not preface with anything like "Here is a summary of the requested analysis:" or "Here is a summary of the user's request:" or anything like that. Just provide the summary.
 
-    Ignore analyses requests from the "USER" that have already been answered by the "ASSISTANT".
+    Ignore questions from the "USER" that have already been answered by the "ASSISTANT".
 
-    Prioritize the most recent analysis request from the "USER" (end of the message history).
+    Prioritize the most recent question from the "USER" (end of the message history).
 
     ---
 
@@ -38,7 +38,7 @@ def create_analysis_description(state: JobState) -> JobState:
 
     ---
 
-    **Summary of Requested Analysis:**
+    **Summary of Requested Question:**
     """
 
     formatted_prompt = prompt.format(

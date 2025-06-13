@@ -10,6 +10,8 @@ from ai.tools.utils.utils import state_to_reference_materials
 from ai.tools.utils.utils import log_llm_call
 
 def flipside_basic_table_selection(state: JobState) -> JobState:
+    if state['question_type'] == 'other':
+        return {'completed_tools': ["FlipsideBasicTableSelection"]}
     reference_materials = state_to_reference_materials(state, include_keys=['schema'])
     prompt = f"""
     You are an expert crypto data scientist trained in the Flipside SQL database. Your task is to read the user's analysis goal and Flipside database schema to determine the basic tables that are needed to analyze the user's analysis goal.

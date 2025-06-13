@@ -10,6 +10,8 @@ from db.flipside.rag_search_queries import rag_search_queries
 from ai.tools.utils.utils import remove_sql_comments
 
 def load_example_flipside_queries(state: JobState) -> JobState:
+    if state['question_type'] == 'other':
+        return {'completed_tools': ["LoadExampleFlipsideQueries"]}
     tokens = list(set([token for x in state['analyses'] for token in x.tokens]))
     projects = list(set([ x.project for x in state['analyses']]))
     n_queries = 10 if len(state['flipside_example_queries']) > 0 else 15

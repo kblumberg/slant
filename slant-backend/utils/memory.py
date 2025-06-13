@@ -137,7 +137,7 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             Create a title for the following conversation:
             {messages}
 
-            The title should be at most 5 words and ideally less than 3 words.
+            The title should be at most 6 words and ideally 4 or fewer words.
 
             Return ONLY the title, and nothing else.
             """
@@ -177,17 +177,18 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             
         return True
     
-    def save_agent_message(self, state: JobState) -> None:
-        query = f"INSERT INTO agent_messages (message, conversation_id, user_message_id) VALUES (%s, %s, %s)"
+    def save_agent_message(self, state: JobState) -> str:
+        # Get the id of the inserted row using RETURNING
+        query = f"INSERT INTO agent_messages (message, conversation_id, user_message_id) VALUES (%s, %s, %s) RETURNING id"
         values = (state['response'], state['conversation_id'], state['user_message_id'])
         conn = psycopg2.connect(POSTGRES_ENGINE)
         cur = conn.cursor()
         cur.execute(query, values)
+        inserted_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
         conn.close()
-            
-        return True
+        return inserted_id
 
     def save_state_snapshot(self, state: JobState) -> None:
         # log('save_state_snapshot')
@@ -319,6 +320,11 @@ class PostgresConversationMemory(BaseChatMessageHistory):
             'use_decoded_flipside_tables': state['use_decoded_flipside_tables'],
             'flipside_determine_approach': state['flipside_determine_approach'],
             'eta': state['eta'],
+            'highcharts_configs': state['highcharts_configs'],
+            'conversation_id': state['conversation_id'],
+            'user_message_id': state['user_message_id'],
+            'user_id': state['user_id'],
+            'agent_message_id': state['agent_message_id'],
             # 'follow_up_questions': state['follow_up_questions'],
             # 'tweets': state['tweets'],
             # 'user_id': state['user_id'],

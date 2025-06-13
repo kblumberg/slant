@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import "./globals.css";
 import { NewsProvider } from '@/context/NewsContext';
 import { ConversationProvider } from '@/context/ConversationContext';
+import { ConversationsProvider } from '@/context/ConversationsContext';
 
 
 
@@ -15,15 +16,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-[#0e0f12] text-white overflow-x-hidden">
-        <NewsProvider>
-          <ConversationProvider>
-          <WalletContextProvider>
-            <Header />
-            <SidePanel />
-            <main className="pt-24 px-4 sm:px-6 sm:pl-48 pl-24 w-full">{children}</main>
-            </WalletContextProvider>
-          </ConversationProvider>
-        </NewsProvider>
+        <WalletContextProvider>
+          <NewsProvider>
+            <ConversationsProvider>
+              <ConversationProvider>
+                <Header />
+                <SidePanel />
+                <main className="pt-24 px-4 sm:px-6 sm:pl-48 pl-24 w-full">{children}</main>
+              </ConversationProvider>
+            </ConversationsProvider>
+          </NewsProvider>
+        </WalletContextProvider>
       </body>
     </html>
   );

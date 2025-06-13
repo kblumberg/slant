@@ -5,6 +5,8 @@ from ai.tools.utils.utils import parse_messages
 from ai.tools.utils.parse_json_from_llm import parse_json_from_llm
 
 def extract_transactions(state: JobState) -> JobState:
+    if state['question_type'] == 'other':
+        return {'completed_tools': ["ExtractTransactions"]}
     messages = parse_messages(state)
     prompt = """
     You are an expert in extracting transaction ids from user messages.
